@@ -220,7 +220,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
   assert.strictEqual(transfers[2026], 0);
 })();
 
-(function testAssetFormationBalanceStartsFromCashflowStartMonthAndIgnoresCurrentValue() {
+(function testAssetFormationBalanceIncludesCurrentValueFromStartYear() {
   const balances = buildAnnualAssetFormationBalancesByYear({
     settings: {
       birthDate: '1990-01-01',
@@ -244,8 +244,8 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 0);
-  assert.strictEqual(balances[2026], 0);
+  assert.strictEqual(balances[2025], 300000);
+  assert.strictEqual(balances[2026], 300000);
 })();
 
 (function testAssetFormationUsesExpectedReturnAndIgnoresCurrentAutoYield() {
@@ -273,8 +273,8 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 0);
-  assert.strictEqual(balances[2026], 0);
+  assert.strictEqual(balances[2025], 1100000);
+  assert.strictEqual(balances[2026], 1210000);
 })();
 
 (function testAssetFormationTreatsInstallmentAndLumpAsInvestmentInputs() {
@@ -301,7 +301,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 1588853);
+  assert.strictEqual(balances[2025], 2688853);
 })();
 
 (function testAssetSnapshotsHandlePlansWithoutIdsIndependently() {
@@ -335,7 +335,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 0);
+  assert.strictEqual(balances[2025], 300000);
 })();
 
 (function testAssetFormationSumsPerContractWithoutApplyingReturnOnAggregate() {
@@ -366,7 +366,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 0);
+  assert.strictEqual(balances[2025], 2120000);
 })();
 
 (function testAssetFormationFirstYearUsesRemainingMonthsOnly() {
@@ -390,7 +390,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 0);
+  assert.strictEqual(balances[2025], 1269961);
 })();
 
 (function testAssetFormationContributionStopsAfterWithdrawMonthWithoutWithdrawal() {
@@ -443,7 +443,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2026], 200000);
+  assert.strictEqual(balances[2026], 5200000);
 })();
 
 (function testLumpSumRateModeUsesCurrentValueAsBaselineWithoutCarryInRebuild() {
