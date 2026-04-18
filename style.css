@@ -1614,7 +1614,7 @@ button.plan-card-trigger {
 
 .plan-segment-control {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid #bdd5e5;
   border-radius: 999px;
   padding: 3px;
@@ -1657,28 +1657,42 @@ button.plan-card-trigger {
 }
 
 .plan-lump-amount-mode-control,
-.plan-lump-amount-mode-control-hybrid,
 .plan-lump-sum-mode-control,
-.plan-lump-sum-mode-control-hybrid,
 .plan-installment-mode-control,
-.plan-installment-mode-control-hybrid {
+.plan-use-setting-control {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.plan-withdrawal-mode-panel {
+.plan-withdrawal-block {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d9e5f1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.plan-withdrawal-block-header {
+  display: grid;
+  gap: 8px;
+}
+
+.plan-withdrawal-block-header h5 {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #274765;
+}
+
+.plan-withdrawal-block-fields {
   display: grid;
   gap: 10px;
 }
 
-.plan-withdrawal-mode-panel[hidden],
+.plan-withdrawal-block-fields[hidden],
 .plan-lump-sum-amount-wrap[hidden],
 .plan-lump-sum-rate-wrap[hidden],
-.plan-lump-sum-amount-wrap-hybrid[hidden],
-.plan-lump-sum-rate-wrap-hybrid[hidden],
 .plan-installment-amount-wrap[hidden],
 .plan-installment-rate-wrap[hidden],
-.plan-installment-amount-wrap-hybrid[hidden],
-.plan-installment-rate-wrap-hybrid[hidden],
 .is-hidden {
   display: none !important;
 }
@@ -1692,32 +1706,9 @@ button.plan-card-trigger {
 .plan-withdrawal-mode-row,
 .plan-lump-sum-amount-wrap,
 .plan-lump-sum-rate-wrap,
-.plan-lump-sum-amount-wrap-hybrid,
-.plan-lump-sum-rate-wrap-hybrid,
 .plan-installment-amount-wrap,
-.plan-installment-rate-wrap,
-.plan-installment-amount-wrap-hybrid,
-.plan-installment-rate-wrap-hybrid {
+.plan-installment-rate-wrap {
   width: 100%;
-}
-
-.plan-hybrid-section {
-  display: grid;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid #d9e5f1;
-  border-radius: 10px;
-  background: #fff;
-}
-
-.plan-hybrid-section + .plan-hybrid-section {
-  border-top: 1px solid #d9e5f1;
-}
-
-.plan-hybrid-section h5 {
-  margin: 0;
-  font-size: 0.83rem;
-  color: #274765;
 }
 
 .change-wrap {
