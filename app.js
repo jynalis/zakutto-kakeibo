@@ -5781,8 +5781,15 @@ function createPlanBlock(plan = {}) {
   withdrawalDayField?.addEventListener("input", refreshAutoYield);
   const setSegmentActiveState = (buttons, selectedValue, resolver) => {
     buttons.forEach((button) => {
-      button.classList.toggle("is-active", resolver(button) === selectedValue);
+      const isActive = resolver(button) === selectedValue;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
     });
+  };
+  const setFieldVisibility = (field, visible) => {
+    if (!field) return;
+    field.hidden = !visible;
+    field.classList.toggle("is-hidden", !visible);
   };
   const syncSharedMonthFields = (value, source) => {
     if (source !== "lump" && withdrawMonthField && withdrawMonthField.value !== value) {
@@ -5809,7 +5816,7 @@ function createPlanBlock(plan = {}) {
   const syncWithdrawalTypePanels = () => {
     const currentType = withdrawalTypeField?.value || "lump_sum";
     withdrawalPanels.forEach((panel) => {
-      panel.hidden = panel.dataset.withdrawalPanel !== currentType;
+      setFieldVisibility(panel, panel.dataset.withdrawalPanel === currentType);
     });
     setSegmentActiveState(withdrawalTypeButtons, currentType, (button) => button.dataset.withdrawalType);
   };
@@ -5817,25 +5824,17 @@ function createPlanBlock(plan = {}) {
     const mode = lumpSumAmountModeField?.value || "full";
     setSegmentActiveState(lumpAmountModeButtons, mode, (button) => button.dataset.lumpSumAmountMode);
     setSegmentActiveState(lumpAmountModeHybridButtons, mode, (button) => button.dataset.lumpSumAmountModeHybrid);
-    if (lumpSumAmountWrap) lumpSumAmountWrap.hidden = mode !== "partial";
-    if (lumpSumAmountWrapHybrid) lumpSumAmountWrapHybrid.hidden = mode !== "partial";
+    setFieldVisibility(lumpSumAmountWrap, mode === "partial");
+    setFieldVisibility(lumpSumAmountWrapHybrid, mode === "partial");
   };
   const syncWithdrawalModeFields = () => {
     const mode = withdrawalModeField?.value || "";
     setSegmentActiveState(withdrawalModeButtons, mode, (button) => button.dataset.withdrawalMode);
     setSegmentActiveState(withdrawalModeHybridButtons, mode, (button) => button.dataset.withdrawalModeHybrid);
-    if (withdrawalAmountWrap) {
-      withdrawalAmountWrap.hidden = mode !== "amount";
-    }
-    if (withdrawalRateWrap) {
-      withdrawalRateWrap.hidden = mode !== "rate";
-    }
-    if (withdrawalAmountWrapHybrid) {
-      withdrawalAmountWrapHybrid.hidden = mode !== "amount";
-    }
-    if (withdrawalRateWrapHybrid) {
-      withdrawalRateWrapHybrid.hidden = mode !== "rate";
-    }
+    setFieldVisibility(withdrawalAmountWrap, mode === "amount");
+    setFieldVisibility(withdrawalRateWrap, mode === "rate");
+    setFieldVisibility(withdrawalAmountWrapHybrid, mode === "amount");
+    setFieldVisibility(withdrawalRateWrapHybrid, mode === "rate");
   };
   withdrawalTypeButtons.forEach((button) => {
     button.addEventListener("click", () => {
