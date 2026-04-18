@@ -5426,33 +5426,34 @@ function createPlanBlock(plan = {}) {
     <div class="plan-card-panel" aria-hidden="false">
       <div class="plan-card-panel-inner">
         <div class="plan-grid">
-          <label>種類<select class="plan-type">${typeOptions}</select></label>
-          <label>識別名<input class="plan-name" type="text" maxlength="30" placeholder="例: つみたて枠" value="${normalizedPlan.name || ""}" /></label>
-          <label>現在評価額<input class="plan-current-value js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.currentValue) ? numberWithComma.format(normalizedPlan.currentValue) : ""}" /></label>
-          <label class="plan-auto-yield-field">
-            現在利回り（自動）
-            <output class="plan-current-auto-yield" aria-live="polite">--</output>
-            <small class="plan-auto-yield-note">過去の入金履歴と現在評価額から自動計算</small>
-          </label>
-          <label>
-            想定利回り(年%)
-            <input class="plan-expected-return" type="number" inputmode="decimal" step="0.01" value="${normalizedPlan.expectedReturn ?? ""}" />
-          </label>
+          <div class="plan-primary-fields">
+            <label>種類<select class="plan-type">${typeOptions}</select></label>
+            <label>識別名<input class="plan-name" type="text" maxlength="30" placeholder="例: つみたて枠" value="${normalizedPlan.name || ""}" /></label>
+            <label>現在評価額<input class="plan-current-value js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.currentValue) ? numberWithComma.format(normalizedPlan.currentValue) : ""}" /></label>
+            <label class="plan-auto-yield-field">
+              現在利回り（自動）
+              <output class="plan-current-auto-yield" aria-live="polite">--</output>
+              <small class="plan-auto-yield-note">過去の入金履歴と現在評価額から自動計算</small>
+            </label>
+            <label>
+              想定利回り(年%)
+              <input class="plan-expected-return" type="number" inputmode="decimal" step="0.01" value="${normalizedPlan.expectedReturn ?? ""}" />
+            </label>
+          </div>
           <div class="plan-expected-return-suggest-row">
             <button type="button" class="small plan-expected-return-suggest">提案値に戻す</button>
           </div>
-          <label>引き落とし日<input class="plan-withdrawal-day" type="number" min="1" max="31" step="1" value="${normalizedPlan.withdrawalDay ?? 1}" /></label>
-          <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.withdrawMonth || ""}" /></label>
-          <p class="plan-withdraw-hint">※一括解約年月が未設定の場合は、積立支出を継続します。</p>
-          <fieldset class="plan-withdrawal-settings" aria-label="取崩設定">
-            <legend>取崩設定</legend>
-            <div class="plan-withdrawal-settings-grid">
-              <div class="withdraw-row-ages">
-                <label>取崩開始年齢<input class="plan-withdrawal-start-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalStartAge ?? ""}" /></label>
-                <label>取崩終了年齢<input class="plan-withdrawal-end-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalEndAge ?? ""}" /></label>
-              </div>
-              <div class="withdraw-row-mode">
-                <label>
+          <div class="plan-withdrawal-stack">
+            <label>引き落とし日<input class="plan-withdrawal-day" type="number" min="1" max="31" step="1" value="${normalizedPlan.withdrawalDay ?? 1}" /></label>
+            <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.withdrawMonth || ""}" /></label>
+            <fieldset class="plan-withdrawal-settings" aria-label="取崩設定">
+              <legend>取崩設定</legend>
+              <div class="plan-withdrawal-settings-grid">
+                <div class="plan-withdrawal-age-row">
+                  <label>取崩開始年齢<input class="plan-withdrawal-start-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalStartAge ?? ""}" /></label>
+                  <label>取崩終了年齢<input class="plan-withdrawal-end-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalEndAge ?? ""}" /></label>
+                </div>
+                <label class="plan-withdrawal-mode-row">
                   取崩方法
                   <select class="plan-withdrawal-mode">
                     <option value="" ${!normalizedPlan.withdrawalMode ? "selected" : ""}>未設定</option>
@@ -5460,13 +5461,12 @@ function createPlanBlock(plan = {}) {
                     <option value="rate" ${normalizedPlan.withdrawalMode === "rate" ? "selected" : ""}>率</option>
                   </select>
                 </label>
-              </div>
-              <div class="withdraw-row-value">
                 <label class="plan-withdrawal-amount-wrap">年間取崩額<input class="plan-withdrawal-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.withdrawalAmount) ? numberWithComma.format(normalizedPlan.withdrawalAmount) : ""}" /></label>
                 <label class="plan-withdrawal-rate-wrap">年間取崩率(%)<input class="plan-withdrawal-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.withdrawalRate) ? normalizedPlan.withdrawalRate : ""}" /></label>
               </div>
-            </div>
-          </fieldset>
+            </fieldset>
+            <p class="plan-withdraw-hint">※一括解約年月が未設定の場合は、積立支出を継続します。</p>
+          </div>
         </div>
         <div class="change-wrap">
           <div class="change-header">
