@@ -244,11 +244,11 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 0);
-  assert.strictEqual(balances[2026], 0);
+  assert.strictEqual(balances[2025], 300000);
+  assert.strictEqual(balances[2026], 300000);
 })();
 
-(function testAssetFormationUsesExpectedReturnOnPostWithdrawalBalance() {
+(function testAssetFormationUsesExpectedReturnAndIgnoresCurrentAutoYield() {
   const balances = buildAnnualAssetFormationBalancesByYear({
     settings: {
       birthDate: '1990-01-01',
@@ -273,11 +273,11 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 990000);
-  assert.strictEqual(balances[2026], 979000);
+  assert.strictEqual(balances[2025], 1100000);
+  assert.strictEqual(balances[2026], 1210000);
 })();
 
-(function testAssetFormationCombinesLumpAndInstallmentThenAppliesExpectedReturn() {
+(function testAssetFormationTreatsInstallmentAndLumpAsInvestmentInputs() {
   const balances = buildAnnualAssetFormationBalancesByYear({
     settings: {
       birthDate: '1990-01-01',
@@ -285,16 +285,12 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
         {
           expectedReturn: 10,
           currentValue: 1000000,
-          monthlyContributions: [],
-          lumpSums: [],
-          useLumpSum: true,
-          lumpSumDate: '2025-03',
-          lumpSumMode: 'amount',
-          lumpSumAmount: 300000,
-          useInstallment: true,
-          installmentStartDate: '2025-01',
-          installmentMode: 'amount',
-          installmentAmount: 100000,
+          monthlyContributions: [
+            { startMonth: '2025-01', amount: 100000 },
+          ],
+          lumpSums: [
+            { month: '2025-03', amount: 300000 },
+          ],
         },
       ],
     },
@@ -305,7 +301,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 660000);
+  assert.strictEqual(balances[2025], 2688853);
 })();
 
 (function testAssetSnapshotsHandlePlansWithoutIdsIndependently() {
@@ -339,7 +335,89 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 200000);
+  assert.strictEqual(balances[2025], 300000);
+})();
+
+(function testAssetFormationSumsPerContractWithoutApplyingReturnOnAggregate() {
+  const balances = buildAnnualAssetFormationBalancesByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'contract-a',
+          expectedReturn: 12,
+          currentValue: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+        },
+        {
+          id: 'contract-b',
+          expectedReturn: 0,
+          currentValue: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2025,
+    startMonth: '2025-01',
+    referenceMonth: '2025-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(balances[2025], 2120000);
+})();
+
+(function testAssetFormationFirstYearUsesRemainingMonthsOnly() {
+  const balances = buildAnnualAssetFormationBalancesByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'partial-year',
+          expectedReturn: 12,
+          currentValue: 1200000,
+          monthlyContributions: [],
+          lumpSums: [],
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2025,
+    startMonth: '2025-07',
+    referenceMonth: '2025-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(balances[2025], 1269961);
+})();
+
+(function testAssetFormationContributionStopsAfterWithdrawMonthWithoutWithdrawal() {
+  const balances = buildAnnualAssetFormationBalancesByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'stop-contribution',
+          expectedReturn: 0,
+          currentValue: 0,
+          monthlyContributions: [
+            { startMonth: '2025-01', amount: 100000 },
+          ],
+          lumpSums: [],
+          withdrawMonth: '2025-03',
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2025,
+    startMonth: '2025-01',
+    referenceMonth: '2025-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(balances[2025], 300000);
 })();
 
 (function testLumpSumRateModeUsesCurrentValueAsBaselineWithoutCarryInRebuild() {

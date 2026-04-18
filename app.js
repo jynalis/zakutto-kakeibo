@@ -4364,18 +4364,76 @@ function buildAnnualAssetFormationBalancesByYear({
   referenceMonth,
   targetAge = CASHFLOW_TABLE_TARGET_AGE,
 }) {
-  const snapshotsByYear = buildAnnualAssetSnapshotsByYear({
-    settings,
+  if (!Array.isArray(settings?.plans) || settings.plans.length === 0) return {};
+  if (!parseBirthDate(settings?.birthDate)) return {};
+  if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
+  if (!parseMonth(startMonth) || !parseMonth(referenceMonth)) return {};
+  if (compareMonth(startMonth, referenceMonth) > 0) return {};
+
+  const contractProjections = settings.plans.map((plan) => calculateContractProjection(normalizePlan(plan), {
     startYear,
     endYear,
     startMonth,
     referenceMonth,
+  }));
+
+  return aggregateAssetFormationByYear(contractProjections, {
+    birthDate: settings.birthDate,
+    startYear,
+    endYear,
     targetAge,
   });
-  return Object.entries(snapshotsByYear).reduce((map, [year, snapshot]) => {
-    map[year] = snapshot.endingBalance;
-    return map;
-  }, {});
+}
+
+function calculateContractProjection(contract, { startYear, endYear, startMonth, referenceMonth }) {
+  if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
+  if (!parseMonth(startMonth) || !parseMonth(referenceMonth)) return {};
+  if (compareMonth(startMonth, referenceMonth) > 0) return {};
+
+  const months = getMonthRangeInclusive(startMonth, referenceMonth);
+  if (months.length === 0) return {};
+
+  const annualReturnRate = Math.max(parseRateInput(contract?.expectedReturn), 0) / 100;
+  const monthlyReturnRate = Math.pow(1 + annualReturnRate, 1 / 12) - 1;
+  let balance = Math.max(Number(contract?.currentValue) || 0, 0);
+  const projectionByYear = {};
+
+  months.forEach((month) => {
+    const monthlyContribution = shouldApplyPlanContributionForMonth(contract, "", month)
+      ? findActiveMonthlyContribution(contract, month)
+      : 0;
+    const monthlyLumpSums = getLumpSumsOnMonth(contract, month)
+      .reduce((sum, amount) => sum + Math.max(Number(amount) || 0, 0), 0);
+
+    const balanceBeforeReturn = Math.max(balance + monthlyContribution + monthlyLumpSums, 0);
+    const monthlyReturn = balanceBeforeReturn * monthlyReturnRate;
+    balance = Math.max(balanceBeforeReturn + monthlyReturn, 0);
+
+    const { year } = parseMonth(month);
+    const isYearEnd = month.endsWith("-12");
+    const isReferenceMonth = compareMonth(month, referenceMonth) === 0;
+    if (isYearEnd || isReferenceMonth) {
+      projectionByYear[year] = Math.round(balance);
+    }
+  });
+
+  return projectionByYear;
+}
+
+function aggregateAssetFormationByYear(contractProjections, { birthDate, startYear, endYear, targetAge }) {
+  if (!Array.isArray(contractProjections)) return {};
+  if (!parseBirthDate(birthDate)) return {};
+  if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
+
+  const totalsByYear = {};
+  for (let year = startYear; year <= endYear; year += 1) {
+    const age = resolveAgeAtYear(birthDate, year);
+    if (!Number.isFinite(age) || age > targetAge) continue;
+    totalsByYear[year] = Math.round(contractProjections.reduce((sum, projection) => (
+      sum + Math.max(Number(projection?.[year]) || 0, 0)
+    ), 0));
+  }
+  return totalsByYear;
 }
 
 function calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth) {
