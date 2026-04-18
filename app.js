@@ -4324,39 +4324,18 @@ function buildAnnualAssetFormationBalancesByYear({
   referenceMonth,
   targetAge = CASHFLOW_TABLE_TARGET_AGE,
 }) {
-  if (!Array.isArray(settings?.plans) || settings.plans.length === 0) return {};
-  if (!parseBirthDate(settings?.birthDate)) return {};
-  if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
-
-  const balancesByYear = {};
-  const planBalances = new Map(
-    settings.plans.map((plan) => [plan.id, calculatePlanCarryInBalanceBeforeMonth(plan, startMonth)])
-  );
-
-  for (let year = startYear; year <= endYear; year += 1) {
-    const age = resolveAgeAtYear(settings.birthDate, year);
-    if (!Number.isFinite(age) || age > targetAge) continue;
-    const yearStartMonth = year === startYear ? startMonth : formatMonth(year, 0);
-    const yearEndMonth = year === endYear ? referenceMonth : formatMonth(year, 11);
-    if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth) || compareMonth(yearStartMonth, yearEndMonth) > 0) continue;
-
-    let totalBalance = 0;
-    settings.plans.forEach((plan) => {
-      const yearStartBalance = Math.max(Number(planBalances.get(plan.id)) || 0, 0);
-      const snapshot = calculatePlanAnnualBalanceSnapshot(plan, {
-        year,
-        yearStartMonth,
-        yearEndMonth,
-        yearStartBalance,
-      });
-      planBalances.set(plan.id, snapshot.yearEndBalance);
-      totalBalance += snapshot.yearEndBalance;
-    });
-
-    balancesByYear[year] = Math.round(totalBalance);
-  }
-
-  return balancesByYear;
+  const snapshotsByYear = buildAnnualAssetSnapshotsByYear({
+    settings,
+    startYear,
+    endYear,
+    startMonth,
+    referenceMonth,
+    targetAge,
+  });
+  return Object.entries(snapshotsByYear).reduce((map, [year, snapshot]) => {
+    map[year] = snapshot.endingBalance;
+    return map;
+  }, {});
 }
 
 function calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth) {
@@ -4387,14 +4366,34 @@ function buildAnnualAssetWithdrawalTransfersByYear({
   referenceMonth,
   targetAge = CASHFLOW_TABLE_TARGET_AGE,
 }) {
+  const snapshotsByYear = buildAnnualAssetSnapshotsByYear({
+    settings,
+    startYear,
+    endYear,
+    startMonth,
+    referenceMonth,
+    targetAge,
+  });
+  return Object.entries(snapshotsByYear).reduce((map, [year, snapshot]) => {
+    map[year] = snapshot.withdrawal;
+    return map;
+  }, {});
+}
+
+function buildAnnualAssetSnapshotsByYear({
+  settings,
+  startYear,
+  endYear,
+  startMonth,
+  referenceMonth,
+  targetAge = CASHFLOW_TABLE_TARGET_AGE,
+}) {
   if (!Array.isArray(settings?.plans) || settings.plans.length === 0) return {};
   if (!parseBirthDate(settings?.birthDate)) return {};
   if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
 
-  const transfers = {};
-  const planBalances = new Map(
-    settings.plans.map((plan) => [plan.id, calculatePlanCarryInBalanceBeforeMonth(plan, startMonth)])
-  );
+  const snapshotsByYear = {};
+  const planBalances = settings.plans.map((plan) => calculatePlanCarryInBalanceBeforeMonth(plan, startMonth));
 
   for (let year = startYear; year <= endYear; year += 1) {
     const age = resolveAgeAtYear(settings.birthDate, year);
@@ -4404,9 +4403,9 @@ function buildAnnualAssetWithdrawalTransfersByYear({
     if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth) || compareMonth(yearStartMonth, yearEndMonth) > 0) continue;
 
     let totalWithdrawalForYear = 0;
-    settings.plans.forEach((plan) => {
-      const planKey = plan.id;
-      const yearStartBalance = Math.max(Number(planBalances.get(planKey)) || 0, 0);
+    let totalEndingBalanceForYear = 0;
+    settings.plans.forEach((plan, planIndex) => {
+      const yearStartBalance = Math.max(Number(planBalances[planIndex]) || 0, 0);
       const snapshot = calculatePlanAnnualBalanceSnapshot(plan, {
         year,
         yearStartMonth,
@@ -4415,13 +4414,17 @@ function buildAnnualAssetWithdrawalTransfersByYear({
       });
 
       totalWithdrawalForYear += snapshot.annualWithdrawal;
-      planBalances.set(planKey, snapshot.yearEndBalance);
+      totalEndingBalanceForYear += snapshot.yearEndBalance;
+      planBalances[planIndex] = snapshot.yearEndBalance;
     });
 
-    transfers[year] = Math.round(totalWithdrawalForYear);
+    snapshotsByYear[year] = {
+      withdrawal: Math.round(totalWithdrawalForYear),
+      endingBalance: Math.round(totalEndingBalanceForYear),
+    };
   }
 
-  return transfers;
+  return snapshotsByYear;
 }
 
 function calculatePlanCarryInBalanceBeforeMonth(plan, startMonth) {
