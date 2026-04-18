@@ -257,6 +257,7 @@ const DEFAULT_CASHFLOW_EXPENSE_SETTINGS = {
 
 const TARGET_AGE_PRIMARY = 60;
 const TARGET_AGE_SECONDARY = 65;
+const CASHFLOW_TABLE_TARGET_AGE = 100;
 const RETIREMENT_REFERENCE_AGE = TARGET_AGE_PRIMARY;
 const RETIREMENT_REFERENCE_DAY_OFFSET = 2;
 
@@ -4204,6 +4205,33 @@ function resolveMonthlyRegularExpenseAmount({
   return defaultMonthlyRegularExpense * ((1 + inflationRate) ** elapsedYears);
 }
 
+function resolveCashflowProjectionRange({ settings, transactions, targetAge }) {
+  if (!parseBirthDate(settings?.birthDate)) return null;
+  const referenceDate = resolveReferenceDateByAge(settings.birthDate, targetAge);
+  if (!referenceDate) return null;
+
+  const cashflowStartMonth = resolveEntryStartMonth(settings, transactions);
+  const parsedCashflowStartMonth = parseMonth(cashflowStartMonth);
+  if (!parsedCashflowStartMonth) return null;
+
+  const startYear = parsedCashflowStartMonth.year;
+  const endYear = referenceDate.getFullYear();
+  if (startYear > endYear) return null;
+
+  const cashflowStartDate = `${cashflowStartMonth}-01`;
+  const currentAge = resolveAgeAtDate(settings.birthDate, cashflowStartDate) ?? calculateAge(settings.birthDate);
+
+  return {
+    referenceDate,
+    referenceYear: referenceDate.getFullYear(),
+    referenceMonth: formatMonth(referenceDate.getFullYear(), referenceDate.getMonth()),
+    cashflowStartMonth,
+    startYear,
+    endYear,
+    currentAge,
+  };
+}
+
 function buildCashflowRowsUntilAge({
   settings,
   transactions,
@@ -4212,25 +4240,20 @@ function buildCashflowRowsUntilAge({
   assumptions,
   targetAge = RETIREMENT_REFERENCE_AGE,
 }) {
-  const birth = parseBirthDate(settings.birthDate);
-  if (!birth) return [];
-
-  const referenceDate = resolveReferenceDateByAge(settings.birthDate, targetAge);
-  if (!referenceDate) return [];
-  const referenceYear = referenceDate.getFullYear();
-  const referenceMonth = formatMonth(referenceYear, referenceDate.getMonth());
-
-  const cashflowStartMonth = resolveEntryStartMonth(settings, transactions);
-  const parsedCashflowStartMonth = parseMonth(cashflowStartMonth);
-  if (!parsedCashflowStartMonth) return [];
-  const startYear = parsedCashflowStartMonth.year;
-  const endYear = referenceYear;
-  if (startYear > endYear) return [];
+  const projectionRange = resolveCashflowProjectionRange({ settings, transactions, targetAge });
+  if (!projectionRange) return [];
+  const {
+    referenceDate,
+    referenceYear,
+    referenceMonth,
+    cashflowStartMonth,
+    startYear,
+    endYear,
+    currentAge,
+  } = projectionRange;
 
   const averageStartMonth = cashflowStartMonth;
   const averageEndMonth = resolveCashflowAverageEndMonth(transactions, cashflowStartMonth);
-  const cashflowStartDate = `${cashflowStartMonth}-01`;
-  const currentAge = resolveAgeAtDate(settings.birthDate, cashflowStartDate) ?? calculateAge(settings.birthDate);
 
   const monthlyIncome = calculateAverageMonthlyAmount(transactions, {
     startMonth: averageStartMonth,
@@ -4381,7 +4404,7 @@ function buildCashflowRows({ settings, transactions, recurringExpenses, lifeEven
     recurringExpenses,
     lifeEvents,
     assumptions,
-    targetAge: TARGET_AGE_SECONDARY,
+    targetAge: CASHFLOW_TABLE_TARGET_AGE,
   });
 }
 
