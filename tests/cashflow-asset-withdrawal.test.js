@@ -185,7 +185,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2025], 0);
 })();
 
-(function testRateModeUsesYearStartBalanceAndCap() {
+(function testRateModeUsesPostWithdrawalBalanceAndCap() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
     settings: {
       birthDate: '1990-01-01',
@@ -220,8 +220,43 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   });
 
   assert.strictEqual(transfers[2024], 200000);
-  assert.strictEqual(transfers[2025], 100000);
-  assert.strictEqual(transfers[2026], 100000);
+  assert.strictEqual(transfers[2025], 99000);
+  assert.strictEqual(transfers[2026], 98010);
+})();
+
+(function testLumpSumAndInstallmentAreCombinedWithAvailableBalanceCap() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'hybrid-plan',
+          expectedReturn: 0,
+          currentValue: 500000,
+          monthlyContributions: [],
+          lumpSums: [],
+          useLumpSum: true,
+          withdrawMonth: '2026-10',
+          lumpSumMode: 'amount',
+          lumpSumAmount: 400000,
+          useInstallment: true,
+          installmentStartDate: '2026-07',
+          installmentMode: 'amount',
+          installmentAmount: 300000,
+          withdrawalMode: 'amount',
+          withdrawalAmount: 300000,
+        },
+      ],
+    },
+    startYear: 2026,
+    endYear: 2027,
+    startMonth: '2026-01',
+    referenceMonth: '2027-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2026], 500000);
+  assert.strictEqual(transfers[2027], 0);
 })();
 
 (function testStartDateContinuesUntilTargetAge() {
