@@ -432,7 +432,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(balances[2025], 300000);
+  assert.strictEqual(balances[2025], 200000);
 })();
 
 (function testAssetFormationDoesNotDoubleCountCurrentTotalAndLumpSum() {

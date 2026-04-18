@@ -119,6 +119,34 @@ assert.strictEqual(typeof formatAmountInputValue, 'function');
   assert.strictEqual(total2034, 80000);
 })();
 
+(function testContributionStopsOnLumpSumWithdrawMonth() {
+  const settings = {
+    birthDate: '1990-01-01',
+    plans: [{
+      monthlyContributions: [
+        { startMonth: '2024-01', amount: 35000 },
+      ],
+      withdrawMonth: '2034-03',
+    }],
+  };
+  const total2034 = calculateAnnualAssetFormationExpense(settings, 2034, '2034-01', '2034-12');
+  assert.strictEqual(total2034, 70000);
+})();
+
+(function testContributionStopsOnInstallmentStartMonth() {
+  const settings = {
+    birthDate: '1990-01-01',
+    plans: [{
+      monthlyContributions: [
+        { startMonth: '2024-01', amount: 35000 },
+      ],
+      installmentStartDate: '2034-03',
+    }],
+  };
+  const total2034 = calculateAnnualAssetFormationExpense(settings, 2034, '2034-01', '2034-12');
+  assert.strictEqual(total2034, 70000);
+})();
+
 (function testFormatAmountInputValueDistinguishesZeroFromBlank() {
   assert.strictEqual(formatAmountInputValue('', { allowZero: true }), '');
   assert.strictEqual(formatAmountInputValue('0', { allowZero: true }), '0');

@@ -4116,9 +4116,9 @@ function resolveAgeAtYear(birthDate, year) {
 }
 
 function shouldApplyPlanContributionForMonth(plan, _birthDate, month) {
-  const contributionEndMonth = resolvePlanContributionEndMonth(plan);
-  if (!contributionEndMonth) return true;
-  return compareMonth(month, contributionEndMonth) <= 0;
+  const contributionStopMonth = resolvePlanContributionEndMonth(plan);
+  if (!contributionStopMonth) return true;
+  return compareMonth(month, contributionStopMonth) < 0;
 }
 
 function countPlanContributionMonthsInYear(plan, birthDate, year) {
@@ -5109,7 +5109,13 @@ function resolveWithdrawExecutionMonth(plan) {
 }
 
 function resolvePlanContributionEndMonth(plan) {
-  return parseMonth(plan?.withdrawMonth) ? plan.withdrawMonth : null;
+  const stopMonths = [];
+  if (parseMonth(plan?.lumpSumDate)) stopMonths.push(plan.lumpSumDate);
+  if (parseMonth(plan?.withdrawMonth)) stopMonths.push(plan.withdrawMonth);
+  if (parseMonth(plan?.installmentStartDate)) stopMonths.push(plan.installmentStartDate);
+  if (parseMonth(plan?.withdrawalStartDate)) stopMonths.push(plan.withdrawalStartDate);
+  if (stopMonths.length === 0) return null;
+  return stopMonths.sort(compareMonth)[0];
 }
 
 function resolvePlanBalanceBaseMonth(plan, targetMonth, options = {}) {
@@ -6031,7 +6037,7 @@ function createPlanBlock(plan = {}) {
                 </div>
               </section>
             </section>
-            <p class="plan-withdraw-hint">※一括解約年月が未設定の場合は、積立支出を継続します。</p>
+            <p class="plan-withdraw-hint">※一括解約年月または分割開始年月が未設定の場合は、積立支出を継続します。</p>
           </div>
         </div>
         <div class="change-wrap">
