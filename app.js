@@ -4330,7 +4330,7 @@ function buildAnnualAssetFormationBalancesByYear({
 
   const balancesByYear = {};
   const planBalances = new Map(
-    settings.plans.map((plan) => [plan.id, Math.max(Number(plan?.currentValue) || 0, 0)])
+    settings.plans.map((plan) => [plan.id, calculatePlanCarryInBalanceBeforeMonth(plan, startMonth)])
   );
 
   for (let year = startYear; year <= endYear; year += 1) {
@@ -4393,7 +4393,7 @@ function buildAnnualAssetWithdrawalTransfersByYear({
 
   const transfers = {};
   const planBalances = new Map(
-    settings.plans.map((plan) => [plan.id, Math.max(Number(plan?.currentValue) || 0, 0)])
+    settings.plans.map((plan) => [plan.id, calculatePlanCarryInBalanceBeforeMonth(plan, startMonth)])
   );
 
   for (let year = startYear; year <= endYear; year += 1) {
@@ -4422,6 +4422,18 @@ function buildAnnualAssetWithdrawalTransfersByYear({
   }
 
   return transfers;
+}
+
+function calculatePlanCarryInBalanceBeforeMonth(plan, startMonth) {
+  const currentValue = Math.max(Number(plan?.currentValue) || 0, 0);
+  if (!parseMonth(startMonth)) return currentValue;
+
+  const projectionTargetMonth = subtractOneMonth(startMonth);
+  if (!parseMonth(projectionTargetMonth)) return currentValue;
+
+  const projected = projectPlanAssetDetails(plan, "", projectionTargetMonth);
+  const projectedCarryIn = Math.max(Number(projected?.amount) || 0, 0);
+  return currentValue + projectedCarryIn;
 }
 
 function buildAssetLumpInvestmentsByMonth(settings) {
