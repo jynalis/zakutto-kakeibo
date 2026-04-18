@@ -5437,8 +5437,10 @@ function createPlanBlock(plan = {}) {
           <label>
             想定利回り(年%)
             <input class="plan-expected-return" type="number" inputmode="decimal" step="0.01" value="${normalizedPlan.expectedReturn ?? ""}" />
-            <button type="button" class="small plan-expected-return-suggest">提案値に戻す</button>
           </label>
+          <div class="plan-expected-return-suggest-row">
+            <button type="button" class="small plan-expected-return-suggest">提案値に戻す</button>
+          </div>
           <label>引き落とし日<input class="plan-withdrawal-day" type="number" min="1" max="31" step="1" value="${normalizedPlan.withdrawalDay ?? 1}" /></label>
           <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.withdrawMonth || ""}" /></label>
           <p class="plan-withdraw-hint">※一括解約年月が未設定の場合は、積立支出を継続します。</p>
