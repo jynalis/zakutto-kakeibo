@@ -4341,7 +4341,7 @@ function buildPlanAnnualBalanceRows(plan, { startYear, endYear, startMonth, refe
   if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return [];
 
   const rows = [];
-  let carryBalance = Math.max(Number(plan?.currentValue) || 0, 0);
+  let carryBalance = resolvePlanInitialPrincipal(plan);
 
   for (let year = startYear; year <= endYear; year += 1) {
     const yearStartMonth = year === startYear ? startMonth : formatMonth(year, 0);
@@ -5175,6 +5175,10 @@ function calculatePlanBalanceAtMonth(plan, birthDate, targetMonth, options = {})
   return Math.max(Number(projection?.amount) || 0, 0);
 }
 
+function resolvePlanInitialPrincipal(plan) {
+  return Math.max(Number(plan?.initialPrincipalAtStartMonth) || 0, 0);
+}
+
 function calculateFinancialAssetTotalAtMonth(settings, targetMonth, options = {}) {
   if (!parseMonth(targetMonth) || !Array.isArray(settings?.plans) || settings.plans.length === 0) return 0;
 
@@ -5286,7 +5290,7 @@ function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, op
   const asOfDate = resolveAsOfDate(options?.asOfDate);
   if (!targetMonth) {
     return {
-      amount: Math.max(Number(plan?.currentValue) || 0, 0),
+      amount: resolvePlanInitialPrincipal(plan),
       baseMonth: null,
       targetMonth,
       months: 0,
@@ -5298,7 +5302,7 @@ function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, op
   const baseMonth = resolvePlanBalanceBaseMonth(plan, targetMonth, options);
   if (!baseMonth || compareMonth(baseMonth, targetMonth) > 0) {
     return {
-      amount: Math.max(Number(plan?.currentValue) || 0, 0),
+      amount: resolvePlanInitialPrincipal(plan),
       baseMonth,
       targetMonth,
       months: 0,
@@ -5308,7 +5312,7 @@ function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, op
   }
 
   let month = baseMonth;
-  let total = Math.max(Number(plan?.currentValue) || 0, 0);
+  let total = resolvePlanInitialPrincipal(plan);
   const appliedMonthly = [];
   const appliedLumpSums = [];
 
