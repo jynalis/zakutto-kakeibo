@@ -248,6 +248,66 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
   assert.strictEqual(balances[2026], 0);
 })();
 
+(function testAssetFormationUsesExpectedReturnOnPostWithdrawalBalance() {
+  const balances = buildAnnualAssetFormationBalancesByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          expectedReturn: 10,
+          currentAutoYield: 99,
+          currentValue: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          useInstallment: true,
+          installmentStartDate: '2025-01',
+          installmentMode: 'amount',
+          installmentAmount: 100000,
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2026,
+    startMonth: '2025-01',
+    referenceMonth: '2026-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(balances[2025], 990000);
+  assert.strictEqual(balances[2026], 979000);
+})();
+
+(function testAssetFormationCombinesLumpAndInstallmentThenAppliesExpectedReturn() {
+  const balances = buildAnnualAssetFormationBalancesByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          expectedReturn: 10,
+          currentValue: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          useLumpSum: true,
+          lumpSumDate: '2025-03',
+          lumpSumMode: 'amount',
+          lumpSumAmount: 300000,
+          useInstallment: true,
+          installmentStartDate: '2025-01',
+          installmentMode: 'amount',
+          installmentAmount: 100000,
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2025,
+    startMonth: '2025-01',
+    referenceMonth: '2025-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(balances[2025], 660000);
+})();
+
 (function testAssetSnapshotsHandlePlansWithoutIdsIndependently() {
   const balances = buildAnnualAssetFormationBalancesByYear({
     settings: {

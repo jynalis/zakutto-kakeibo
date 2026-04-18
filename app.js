@@ -4286,6 +4286,52 @@ function resolvePlanAnnualLumpSumWithdrawalAmount(plan, yearStartMonth, yearEndM
   return Math.min(lumpSumAmount, safeAvailableBalance);
 }
 
+function resolvePlanExpectedAnnualReturnRate(plan) {
+  return parseRateInput(plan?.expectedReturn) / 100;
+}
+
+function calculatePlanAnnualProjectionStep(plan, {
+  year,
+  yearStartMonth,
+  yearEndMonth,
+  yearStartBalance,
+}) {
+  const openingBalance = Math.max(Number(yearStartBalance) || 0, 0);
+  const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
+  const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
+  const balanceBeforeWithdrawal = Math.max(openingBalance + annualContributions + annualLumpSums, 0);
+
+  const annualLumpSumWithdrawal = resolvePlanAnnualLumpSumWithdrawalAmount(
+    plan,
+    yearStartMonth,
+    yearEndMonth,
+    balanceBeforeWithdrawal
+  );
+  const balanceAfterLumpSumWithdrawal = Math.max(balanceBeforeWithdrawal - annualLumpSumWithdrawal, 0);
+
+  const activeMonthsInYear = calculatePlanInstallmentActiveMonthsInYear(plan, yearStartMonth, yearEndMonth);
+  const annualInstallmentWithdrawal = activeMonthsInYear > 0
+    ? resolvePlanAnnualInstallmentWithdrawalAmount(plan, balanceAfterLumpSumWithdrawal, activeMonthsInYear)
+    : 0;
+  const balanceAfterWithdrawal = Math.max(balanceAfterLumpSumWithdrawal - annualInstallmentWithdrawal, 0);
+
+  const annualReturnRate = resolvePlanExpectedAnnualReturnRate(plan);
+  const annualReturn = balanceAfterWithdrawal * annualReturnRate;
+  const yearEndBalance = Math.max(balanceAfterWithdrawal + annualReturn, 0);
+
+  return {
+    year,
+    yearStartBalance: openingBalance,
+    annualContributions,
+    annualLumpSums,
+    annualLumpSumWithdrawal,
+    annualInstallmentWithdrawal,
+    balanceAfterWithdrawal,
+    annualReturn,
+    yearEndBalance,
+  };
+}
+
 function buildPlanAnnualBalanceRows(plan, { startYear, endYear, startMonth, referenceMonth }) {
   if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return [];
 
@@ -4297,40 +4343,14 @@ function buildPlanAnnualBalanceRows(plan, { startYear, endYear, startMonth, refe
     const yearEndMonth = year === endYear ? referenceMonth : formatMonth(year, 11);
     if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth) || compareMonth(yearStartMonth, yearEndMonth) > 0) continue;
 
-    const yearStartBalance = Math.max(carryBalance, 0);
-    const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
-    const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
-    const balanceBeforeWithdrawal = Math.max(yearStartBalance + annualContributions + annualLumpSums, 0);
-
-    const annualLumpSumWithdrawal = resolvePlanAnnualLumpSumWithdrawalAmount(
-      plan,
+    const annualRow = calculatePlanAnnualProjectionStep(plan, {
+      year,
       yearStartMonth,
       yearEndMonth,
-      balanceBeforeWithdrawal
-    );
-    const balanceAfterLumpSumWithdrawal = Math.max(balanceBeforeWithdrawal - annualLumpSumWithdrawal, 0);
-
-    const activeMonthsInYear = calculatePlanInstallmentActiveMonthsInYear(plan, yearStartMonth, yearEndMonth);
-    const annualInstallmentWithdrawal = activeMonthsInYear > 0
-      ? resolvePlanAnnualInstallmentWithdrawalAmount(plan, balanceAfterLumpSumWithdrawal, activeMonthsInYear)
-      : 0;
-    const balanceAfterWithdrawal = Math.max(balanceAfterLumpSumWithdrawal - annualInstallmentWithdrawal, 0);
-
-    const annualReturnRate = parseRateInput(plan?.expectedReturn) / 100;
-    const annualReturn = balanceAfterWithdrawal * annualReturnRate;
-    const yearEndBalance = Math.max(balanceAfterWithdrawal + annualReturn, 0);
-
-    rows.push({
-      year,
-      yearStartBalance,
-      annualContributions,
-      annualLumpSums,
-      annualLumpSumWithdrawal,
-      annualInstallmentWithdrawal,
-      annualReturn,
-      yearEndBalance,
+      yearStartBalance: carryBalance,
     });
-    carryBalance = yearEndBalance;
+    rows.push(annualRow);
+    carryBalance = annualRow.yearEndBalance;
   }
 
   return rows;
