@@ -2895,6 +2895,20 @@ function calculateSuggestedExpectedReturn(plan) {
   return Number(((1 - weight) * baseReturn + (weight * boundedAutoYield)).toFixed(2));
 }
 
+function calculateSuggestedWithdrawMonth({ birthDate } = {}) {
+  if (!parseBirthDate(birthDate)) return "";
+  return resolveRetirementReferenceMonth(birthDate) || "";
+}
+
+function resolveSuggestedWithdrawMonthForForm() {
+  const formBirthDate = birthDateInput?.value;
+  if (parseBirthDate(formBirthDate)) {
+    return calculateSuggestedWithdrawMonth({ birthDate: formBirthDate });
+  }
+  const savedBirthDate = loadSettings()?.birthDate;
+  return calculateSuggestedWithdrawMonth({ birthDate: savedBirthDate });
+}
+
 function formatAutoYieldPercent(value) {
   if (!Number.isFinite(value)) return "--";
   return `${value.toFixed(2)}%`;
@@ -4120,7 +4134,7 @@ function isPlanWithdrawalActiveAtAge(plan, age) {
   const startAge = parseOptionalAgeInput(plan?.withdrawalStartAge);
   if (!Number.isFinite(startAge) || startAge < 0) return false;
   const endAge = parseOptionalAgeInput(plan?.withdrawalEndAge);
-  const normalizedEndAge = Number.isFinite(endAge) && endAge >= 0 ? endAge : CASHFLOW_TABLE_TARGET_AGE;
+  const normalizedEndAge = Number.isFinite(endAge) && endAge > 0 ? endAge : CASHFLOW_TABLE_TARGET_AGE;
   return age >= startAge && age <= normalizedEndAge;
 }
 
@@ -5602,6 +5616,7 @@ function createPlanBlock(plan = {}) {
   const expectedReturnField = wrap.querySelector(".plan-expected-return");
   const suggestExpectedReturnButton = wrap.querySelector(".plan-expected-return-suggest");
   const withdrawalDayField = wrap.querySelector(".plan-withdrawal-day");
+  const withdrawMonthField = wrap.querySelector(".plan-withdraw-month");
   const withdrawalModeField = wrap.querySelector(".plan-withdrawal-mode");
   const withdrawalAmountWrap = wrap.querySelector(".plan-withdrawal-amount-wrap");
   const withdrawalRateWrap = wrap.querySelector(".plan-withdrawal-rate-wrap");
@@ -5699,6 +5714,9 @@ function createPlanBlock(plan = {}) {
     });
     if (expectedReturnField) {
       expectedReturnField.value = Number.isFinite(suggestedExpectedReturn) ? suggestedExpectedReturn.toFixed(2) : "4.00";
+    }
+    if (withdrawMonthField) {
+      withdrawMonthField.value = resolveSuggestedWithdrawMonthForForm();
     }
   });
 

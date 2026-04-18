@@ -56,7 +56,9 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
 
 const buildAnnualAssetWithdrawalTransfersByYear = sandbox.buildAnnualAssetWithdrawalTransfersByYear;
+const calculateSuggestedWithdrawMonth = sandbox.calculateSuggestedWithdrawMonth;
 assert.strictEqual(typeof buildAnnualAssetWithdrawalTransfersByYear, 'function');
+assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
 
 (function testAmountAndUnsetModes() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
@@ -139,6 +141,45 @@ assert.strictEqual(typeof buildAnnualAssetWithdrawalTransfersByYear, 'function')
   assert.strictEqual(transfers[2024], 200000);
   assert.strictEqual(transfers[2025], 100000);
   assert.strictEqual(transfers[2026], 100000);
+})();
+
+(function testEndAgeZeroContinuesUntil100() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'p-end-zero',
+          expectedReturn: 0,
+          currentValue: 500000,
+          monthlyContributions: [],
+          lumpSums: [],
+          withdrawalStartAge: 35,
+          withdrawalEndAge: 0,
+          withdrawalMode: 'amount',
+          withdrawalAmount: 100000,
+        },
+      ],
+    },
+    startYear: 2024,
+    endYear: 2028,
+    startMonth: '2024-01',
+    referenceMonth: '2028-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2025], 100000);
+  assert.strictEqual(transfers[2026], 100000);
+  assert.strictEqual(transfers[2027], 100000);
+  assert.strictEqual(transfers[2028], 100000);
+})();
+
+(function testSuggestedWithdrawMonthUsesRetirementReferenceMonth() {
+  assert.strictEqual(
+    calculateSuggestedWithdrawMonth({ birthDate: '1990-01-15' }),
+    '2050-01'
+  );
+  assert.strictEqual(calculateSuggestedWithdrawMonth({ birthDate: '' }), '');
 })();
 
 console.log('cashflow asset withdrawal tests passed');
