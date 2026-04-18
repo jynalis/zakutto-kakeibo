@@ -4221,6 +4221,22 @@ function calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEnd
   return activeMonths;
 }
 
+function resolvePlanInstallmentMode(plan) {
+  if (plan?.installmentMode === "amount" || plan?.installmentMode === "rate") return plan.installmentMode;
+  if (plan?.withdrawalMode === "amount" || plan?.withdrawalMode === "rate") return plan.withdrawalMode;
+  return "";
+}
+
+function resolvePlanInstallmentAmount(plan) {
+  if (Number.isFinite(Number(plan?.installmentAmount))) return Math.max(Number(plan.installmentAmount), 0);
+  return Math.max(Number(plan?.withdrawalAmount) || 0, 0);
+}
+
+function resolvePlanInstallmentRateDecimal(plan) {
+  const sourceRate = plan?.installmentRate ?? plan?.withdrawalRate;
+  return Math.max(parseRateInput(sourceRate), 0) / 100;
+}
+
 function resolvePlanAnnualInstallmentWithdrawalAmount(plan, availableBalanceBeforeWithdrawal, activeMonthsInYear = 12) {
   const safeAvailableBalance = Math.max(Number(availableBalanceBeforeWithdrawal) || 0, 0);
   if (safeAvailableBalance <= 0) return 0;
@@ -4228,14 +4244,15 @@ function resolvePlanAnnualInstallmentWithdrawalAmount(plan, availableBalanceBefo
   const safeActiveMonths = Math.max(Math.min(Number(activeMonthsInYear) || 0, 12), 0);
   if (safeActiveMonths <= 0) return 0;
   const prorationFactor = safeActiveMonths / 12;
+  const installmentMode = resolvePlanInstallmentMode(plan);
 
-  if (plan?.withdrawalMode === "amount") {
-    const annualAmount = Math.max(Number(plan?.withdrawalAmount) || 0, 0);
+  if (installmentMode === "amount") {
+    const annualAmount = resolvePlanInstallmentAmount(plan);
     return Math.min(annualAmount * prorationFactor, safeAvailableBalance);
   }
 
-  if (plan?.withdrawalMode === "rate") {
-    const annualRate = Math.max(parseRateInput(plan?.withdrawalRate), 0) / 100;
+  if (installmentMode === "rate") {
+    const annualRate = resolvePlanInstallmentRateDecimal(plan);
     const calculated = safeAvailableBalance * annualRate * prorationFactor;
     return Math.min(calculated, safeAvailableBalance);
   }
@@ -4969,6 +4986,7 @@ function resolveRetirementReferenceMonth(birthDate) {
 }
 
 function resolveWithdrawExecutionMonth(plan) {
+  if (parseMonth(plan?.lumpSumDate)) return plan.lumpSumDate;
   return parseMonth(plan?.withdrawMonth) ? plan.withdrawMonth : null;
 }
 

@@ -158,6 +158,64 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2026], 47040);
 })();
 
+(function testInstallmentRateModeReadsInstallmentKeys() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'installment-rate-keys',
+          expectedReturn: 0,
+          currentValue: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          useInstallment: true,
+          installmentStartDate: '2025-01',
+          installmentMode: 'rate',
+          installmentRate: 5,
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2026,
+    startMonth: '2025-01',
+    referenceMonth: '2026-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2025], 50000);
+  assert.strictEqual(transfers[2026], 47500);
+})();
+
+(function testLumpSumRateModeReadsLumpSumDateAndCapsAtBalance() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'lump-rate-keys',
+          expectedReturn: 0,
+          currentValue: 200000,
+          monthlyContributions: [],
+          lumpSums: [],
+          useLumpSum: true,
+          lumpSumDate: '2025-03',
+          lumpSumMode: 'rate',
+          lumpSumRate: 100,
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2026,
+    startMonth: '2025-01',
+    referenceMonth: '2026-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2025], 200000);
+  assert.strictEqual(transfers[2026], 0);
+})();
+
 (function testUnsetInstallmentStartDateDoesNotApplyWithdrawals() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
     settings: {
