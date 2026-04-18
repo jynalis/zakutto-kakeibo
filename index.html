@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>かんたん家計簿</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="page-header card">
+        <div class="hero-copy">
+          <div class="hero-copy-main">
+            <h1>ザクっと家計簿</h1>
+            <p class="hero-subtitle">家計管理だけで将来が見える！</p>
+          </div>
+          <div class="hero-tag-stack" aria-label="監修情報">
+            <p class="eyebrow eyebrow-small">FP監修</p>
+            <p class="eyebrow eyebrow-wide">資産形成編</p>
+          </div>
+        </div>
+      </header>
+
+      <section class="primary-main-section" aria-label="アプリ主タブ">
+        <div class="primary-main-tabbar">
+          <div class="primary-main-tabs" role="tablist" aria-label="主表示タブ切替">
+            <button
+              type="button"
+              id="primary-main-tab-start"
+              class="primary-main-tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="primary-main-panel-start"
+              data-primary-main-tab="start"
+              tabindex="-1"
+            >
+              操作方法
+            </button>
+            <button
+              type="button"
+              id="primary-main-tab-dashboard"
+              class="primary-main-tab is-active"
+              role="tab"
+              aria-selected="true"
+              aria-controls="primary-main-panel-dashboard"
+              data-primary-main-tab="dashboard"
+            >
+              ダッシュボード
+            </button>
+            <button
+              type="button"
+              id="primary-main-tab-assets"
+              class="primary-main-tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="primary-main-panel-assets"
+              data-primary-main-tab="assets"
+              tabindex="-1"
+            >
+              資産形成
+            </button>
+            <button
+              type="button"
+              id="primary-main-tab-input"
+              class="primary-main-tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="primary-main-panel-input"
+              data-primary-main-tab="input"
+              tabindex="-1"
+            >
+              入力
+            </button>
+          </div>
+        </div>
+        <div class="primary-main-panels">
+          <section
+            id="primary-main-panel-start"
+            class="primary-main-panel"
+            role="tabpanel"
+            aria-labelledby="primary-main-tab-start"
+            data-primary-main-panel="start"
+            hidden
+          ></section>
+          <section
+            id="primary-main-panel-dashboard"
+            class="primary-main-panel is-active"
+            role="tabpanel"
+            aria-labelledby="primary-main-tab-dashboard"
+            data-primary-main-panel="dashboard"
+          ></section>
+          <section
+            id="primary-main-panel-assets"
+            class="primary-main-panel"
+            role="tabpanel"
+            aria-labelledby="primary-main-tab-assets"
+            data-primary-main-panel="assets"
+            hidden
+          ></section>
+          <section
+            id="primary-main-panel-input"
+            class="primary-main-panel"
+            role="tabpanel"
+            aria-labelledby="primary-main-tab-input"
+            data-primary-main-panel="input"
+            hidden
+          >
+            <section id="section-input-main" class="card section-tone-input input-main-section" data-nav-section="input-main" aria-label="入力表示切替">
+              <div class="input-main-header">
+                <div class="section-heading">
+                  <p class="section-role-badge">入力内容の登録・確認</p>
+                  <h2>入力メニュー</h2>
+                  <p class="section-description">
+                    基本・定期支出・ライフ・毎月収支を切り替えて、必要な入力をまとめて管理できます。
+                  </p>
+                </div>
+              </div>
+              <div class="input-main-tabbar">
+                <div class="input-main-tabs" role="tablist" aria-label="入力タブの表示切替">
+                  <button type="button" id="input-main-tab-monthly" class="input-main-tab is-active" role="tab" aria-selected="true" aria-controls="input-main-panel-monthly" data-input-main-tab="monthly">毎月収支</button>
+                  <button type="button" id="input-main-tab-basic" class="input-main-tab" role="tab" aria-selected="false" aria-controls="input-main-panel-basic" data-input-main-tab="basic" tabindex="-1">基本</button>
+                  <button type="button" id="input-main-tab-recurring" class="input-main-tab" role="tab" aria-selected="false" aria-controls="input-main-panel-recurring" data-input-main-tab="recurring" tabindex="-1">定期支出</button>
+                  <button type="button" id="input-main-tab-life" class="input-main-tab" role="tab" aria-selected="false" aria-controls="input-main-panel-life" data-input-main-tab="life" tabindex="-1">ライフ</button>
+                </div>
+              </div>
+              <div class="input-main-content">
+                <div id="input-main-panel-monthly" class="input-main-panel is-active" role="tabpanel" aria-labelledby="input-main-tab-monthly" data-input-main-panel="monthly"></div>
+                <div id="input-main-panel-basic" class="input-main-panel" role="tabpanel" aria-labelledby="input-main-tab-basic" data-input-main-panel="basic" hidden></div>
+                <div id="input-main-panel-recurring" class="input-main-panel" role="tabpanel" aria-labelledby="input-main-tab-recurring" data-input-main-panel="recurring" hidden></div>
+                <div id="input-main-panel-life" class="input-main-panel" role="tabpanel" aria-labelledby="input-main-tab-life" data-input-main-panel="life" hidden></div>
+              </div>
+            </section>
+          </section>
+        </div>
+      </section>
+
+      <section id="section-start" class="card section-tone-start" data-nav-section="start">
+        <div class="section-heading">
+          <p class="section-role-badge">まずここから</p>
+          <h2>最初にやること</h2>
+          <p class="section-description">
+            この画面は、家計診断を始める前の準備ガイドです。下の手順どおりに入力を進めると、ダッシュボードと資産形成の結果がより正確になります。
+          </p>
+        </div>
+        <ol class="start-guide-list">
+          <li>
+            <h3>1. 入力タブで「基本」を登録</h3>
+            <p>記入開始月・生年月日を設定し、JSONバックアップの保存/読込を確認します。</p>
+          </li>
+          <li>
+            <h3>2. 定期支出とライフイベントを入力</h3>
+            <p>毎月発生する固定費や、将来予定している臨時収入・臨時支出を反映します。</p>
+          </li>
+          <li>
+            <h3>3. 毎月収支を登録</h3>
+            <p>収入・支出を入力していくと、ダッシュボードで当月残高や診断コメントを確認できます。</p>
+          </li>
+          <li>
+            <h3>4. ダッシュボード/資産形成を確認</h3>
+            <p>入力後は、下部タブからダッシュボードと資産形成へ移動して推移を確認してください。</p>
+          </li>
+        </ol>
+      </section>
+
+      <section
+        id="section-home"
+        class="card dashboard-section section-tone-home"
+      >
+        <div class="dashboard-header" id="trigger-home">
+          <div class="section-heading">
+            <h2>
+              <span class="dashboard-title-chunk">家計診断</span>
+              <span class="dashboard-title-chunk">ダッシュボード</span>
+            </h2>
+          </div>
+        </div>
+        <div class="dashboard-panel" id="panel-home" role="region" aria-labelledby="trigger-home">
+          <div class="dashboard-panel-inner">
+            <div class="filters shared-view-filters" data-shared-view-filter="dashboard">
+              <select id="dashboard-view-mode" aria-label="ダッシュボード表示モード">
+                <option value="month">単月</option>
+                <option value="average">平均</option>
+              </select>
+              <select id="dashboard-year-filter" aria-label="ダッシュボード表示年"></select>
+              <select id="dashboard-month-filter" aria-label="ダッシュボード表示月"></select>
+            </div>
+            <div class="dashboard-grid">
+              <article
+                class="dashboard-card dashboard-card-jump dashboard-card-balance"
+                role="button"
+                tabindex="0"
+                data-dashboard-jump-section="input-sub-panel-monthly-history"
+                aria-label="取引履歴へ移動"
+              >
+                <span>当月末残高</span>
+                <strong id="dashboard-balance-total">¥0</strong>
+              </article>
+              <article
+                class="dashboard-card dashboard-card-jump dashboard-card-future"
+                role="button"
+                tabindex="0"
+                id="dashboard-retirement-card"
+                data-action="open-dashboard-age65-assets"
+                aria-label="ダッシュボード内の65歳時資産へ移動"
+              >
+                <span>65歳時資産形成額</span>
+                <strong id="dashboard-age65-total">¥0</strong>
+              </article>
+              <article
+                class="dashboard-card dashboard-card-jump dashboard-card-income"
+                role="button"
+                tabindex="0"
+                data-dashboard-jump-section="section-assets"
+                data-dashboard-jump-asset-tab="cashflow"
+                data-dashboard-jump-cashflow-sub-tab="cf"
+                aria-label="キャッシュフロー表へ移動"
+              >
+                <span>当月収入</span>
+                <strong id="dashboard-income-total">¥0</strong>
+              </article>
+              <article
+                class="dashboard-card dashboard-card-jump dashboard-card-expense"
+                role="button"
+                tabindex="0"
+                data-dashboard-jump-section="input-sub-panel-monthly-expense-balance"
+                aria-label="支出分析へ移動"
+              >
+                <span>当月支出</span>
+                <strong id="dashboard-expense-total">¥0</strong>
+              </article>
+            </div>
+            <article class="dashboard-chart-card asset-growth-card" aria-live="polite">
+              <div class="dashboard-chart-card-header">
+                <p class="dashboard-chart-title">年ごとの資産形成グラフ</p>
+                <div class="asset-growth-card__meta">
+                  <p id="asset-growth-monthly-chip" class="asset-growth-card__chip">毎月の積立額: ¥0</p>
+                </div>
+                <div
+                  id="asset-growth-metric-toggle"
+                  class="asset-growth-card__toggle"
+                  role="group"
+                  aria-label="年ごとの資産形成グラフの表示切り替え"
+                >
+                  <button type="button" class="asset-growth-card__toggle-btn is-active" data-asset-growth-metric="endingBalance" aria-pressed="true">
+                    残高
+                  </button>
+                  <button type="button" class="asset-growth-card__toggle-btn" data-asset-growth-metric="assetFormationBalance" aria-pressed="false">
+                    資産形成額
+                  </button>
+                  <button type="button" class="asset-growth-card__toggle-btn" data-asset-growth-metric="financialAssetTotal" aria-pressed="false">
+                    金融資産
+                  </button>
+                </div>
+              </div>
+              <div id="dashboard-asset-formation-chart" class="dashboard-asset-formation-chart"></div>
+            </article>
+            <article class="diagnosis-card" aria-live="polite">
+              <p class="diagnosis-label">FPコメント</p>
+              <p id="dashboard-diagnosis-comment" class="diagnosis-text">
+                収支・定期支出・資産形成を入力すると、家計の偏りや改善ポイントをここに表示します。
+              </p>
+            </article>
+            <article class="dashboard-asset-graph-card" aria-live="polite">
+              <div class="dashboard-asset-graph-tabbar" role="tablist" aria-label="ダッシュボード資産グラフ切替">
+                <button
+                  type="button"
+                  id="dashboard-asset-graph-tab-current-assets"
+                  class="dashboard-asset-graph-tab is-active"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="dashboard-asset-graph-panel-current-assets"
+                  data-dashboard-asset-graph-tab="current-assets"
+                >
+                  現状資産
+                </button>
+                <button
+                  type="button"
+                  id="dashboard-tab-age65-assets"
+                  class="dashboard-asset-graph-tab"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="dashboard-panel-age65-assets"
+                  data-dashboard-asset-graph-tab="asset-formation"
+                  tabindex="-1"
+                >
+                  65歳時資産
+                </button>
+                <button
+                  type="button"
+                  id="dashboard-asset-graph-tab-withdraw"
+                  class="dashboard-asset-graph-tab"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="dashboard-asset-graph-panel-withdraw"
+                  data-dashboard-asset-graph-tab="withdraw"
+                  tabindex="-1"
+                >
+                  満期解約
+                </button>
+              </div>
+              <div class="dashboard-asset-graph-panels">
+                <section
+                  id="dashboard-asset-graph-panel-current-assets"
+                  class="dashboard-asset-graph-panel is-active"
+                  role="tabpanel"
+                  aria-labelledby="dashboard-asset-graph-tab-current-assets"
+                  data-dashboard-asset-graph-panel="current-assets"
+                >
+                  <div id="dashboard-current-asset-forecast" class="asset-forecast"></div>
+                </section>
+                <section
+                  id="dashboard-panel-age65-assets"
+                  class="dashboard-asset-graph-panel"
+                  role="tabpanel"
+                  aria-labelledby="dashboard-tab-age65-assets"
+                  data-dashboard-asset-graph-panel="asset-formation"
+                  hidden
+                >
+                  <div id="dashboard-age65-asset-forecast" class="asset-forecast"></div>
+                </section>
+                <section
+                  id="dashboard-asset-graph-panel-withdraw"
+                  class="dashboard-asset-graph-panel"
+                  role="tabpanel"
+                  aria-labelledby="dashboard-asset-graph-tab-withdraw"
+                  data-dashboard-asset-graph-panel="withdraw"
+                  hidden
+                >
+                  <div id="dashboard-withdraw-asset-forecast" class="asset-forecast"></div>
+                </section>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-profile" class="card section-tone-profile" data-nav-section="home">
+        <div class="input-sub-content" data-input-sub-content="basic">
+          <section id="input-sub-panel-basic-register" class="input-sub-panel is-active" data-input-sub-panel="register">
+            <div class="basic-sub-panel-body">
+              <form id="profile-form" class="grid">
+                <section class="full profile-form-section profile-basic-settings-section" aria-labelledby="profile-basic-settings-heading">
+                  <h3 id="profile-basic-settings-heading" class="profile-form-section-heading">初期設定</h3>
+                  <div class="profile-basic-settings-grid">
+                    <label>
+                      記入開始月を登録
+                      <input type="month" id="entry-start-month" required />
+                    </label>
+                    <label>
+                      生年月日を登録
+                      <input type="date" id="birth-date" required />
+                    </label>
+                  </div>
+                </section>
+                <div class="full profile-form-actions profile-basic-settings-actions">
+                  <button type="button" id="profile-basic-save-button" class="profile-save-settings-button">設定を保存</button>
+                </div>
+                <section class="full profile-form-section profile-backup-section" aria-labelledby="profile-backup-heading">
+                  <h3 id="profile-backup-heading" class="profile-form-section-heading">JSON</h3>
+                  <p class="profile-plan-note">URL変更や端末変更に備えて、現在の入力データをJSONで保存・復元できます。</p>
+                  <div class="profile-form-actions profile-basic-settings-actions profile-backup-actions">
+                    <button type="button" id="profile-backup-export-button" class="ghost">バックアップ保存</button>
+                    <button type="button" id="profile-backup-import-button" class="ghost">バックアップ読込</button>
+                    <input type="file" id="profile-backup-file-input" accept="application/json,.json" hidden />
+                  </div>
+                </section>
+              </form>
+            </div>
+          </section>
+        </div>
+      </section>
+
+
+      <section id="section-recurring" class="card section-tone-recurring">
+        <div class="input-sub-switch" role="tablist" aria-label="定期支出タブの切り替え" data-input-sub-switch="recurring">
+          <button type="button" id="input-sub-tab-recurring-register" class="input-sub-tab is-active" role="tab" aria-selected="true" aria-controls="input-sub-panel-recurring-register" data-input-sub-tab="register">登録</button>
+          <button type="button" id="input-sub-tab-recurring-registered" class="input-sub-tab" role="tab" aria-selected="false" aria-controls="input-sub-panel-recurring-registered" data-input-sub-tab="registered" tabindex="-1">登録済</button>
+        </div>
+        <div class="input-sub-content" data-input-sub-content="recurring">
+          <section id="input-sub-panel-recurring-register" class="input-sub-panel is-active" role="tabpanel" aria-labelledby="input-sub-tab-recurring-register" data-input-sub-panel="register">
+            <form id="recurring-form" class="grid recurring-form" autocomplete="off">
+              <p id="recurring-edit-status" class="recurring-edit-status" aria-live="polite" hidden>
+                定期支出を編集中
+              </p>
+              <label>
+                支出項目名
+                <select id="recurring-category" required></select>
+              </label>
+              <label>
+                金額 (円)
+                <input id="recurring-amount" type="text" inputmode="numeric" placeholder="例: 68,000" required />
+              </label>
+              <label>
+                引落日
+                <select id="recurring-day" required></select>
+              </label>
+              <label>
+                開始月
+                <input id="recurring-start-month" type="month" required />
+              </label>
+              <label>
+                終了月（任意）
+                <input id="recurring-end-month" type="month" />
+              </label>
+              <label class="full memo-inline-field">
+                メモ（任意）
+                <input id="recurring-memo" type="hidden" value="" />
+                <button
+                  type="button"
+                  id="recurring-memo-trigger"
+                  class="memo-compact-trigger"
+                  data-memo-trigger
+                  data-memo-target="recurring-memo"
+                  data-memo-title="定期支出メモ"
+                  data-memo-placeholder="任意"
+                  data-memo-maxlength="60"
+                  aria-label="定期支出メモを入力"
+                >
+                  <span class="memo-compact-trigger-label">メモ</span>
+                  <span id="recurring-memo-preview" class="memo-compact-trigger-value" data-memo-preview>任意</span>
+                </button>
+              </label>
+              <div class="full recurring-form-actions">
+                <button type="submit" id="recurring-submit-button">追加</button>
+                <button type="button" id="recurring-cancel-button" class="ghost" hidden>キャンセル</button>
+              </div>
+            </form>
+          </section>
+          <section id="input-sub-panel-recurring-registered" class="input-sub-panel" role="tabpanel" aria-labelledby="input-sub-tab-recurring-registered" data-input-sub-panel="registered" hidden>
+            <div id="recurring-list" class="recurring-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="section-input" class="card section-tone-input" data-nav-section="input">
+        <div class="input-sub-switch" role="tablist" aria-label="毎月収支タブの切り替え" data-input-sub-switch="monthly">
+          <button type="button" id="input-sub-tab-monthly-register" class="input-sub-tab is-active" role="tab" aria-selected="true" aria-controls="input-sub-panel-monthly-register" data-input-sub-tab="register">登録</button>
+          <button type="button" id="input-sub-tab-monthly-history" class="input-sub-tab" role="tab" aria-selected="false" aria-controls="input-sub-panel-monthly-history" data-input-sub-tab="history" tabindex="-1">取引履歴</button>
+          <button type="button" id="input-sub-tab-monthly-expense-balance" class="input-sub-tab" role="tab" aria-selected="false" aria-controls="input-sub-panel-monthly-expense-balance" data-input-sub-tab="expense-balance" tabindex="-1">支出分析</button>
+        </div>
+        <div class="input-sub-content" data-input-sub-content="monthly">
+                <section id="input-sub-panel-monthly-register" class="input-sub-panel is-active" role="tabpanel" aria-labelledby="input-sub-tab-monthly-register" data-input-sub-panel="register">
+                  <form id="transaction-form" class="grid">
+                    <p id="transaction-edit-status" class="transaction-edit-status full" aria-live="polite" hidden>
+                      日ごとの支出を編集中
+                    </p>
+                    <label>
+                      日付
+                      <input type="date" id="date" required />
+                    </label>
+                    <label>
+                      種類
+                      <select id="type" required>
+                        <option value="expense">支出</option>
+                        <option value="income">収入</option>
+                      </select>
+                    </label>
+                    <label>
+                      カテゴリ
+                      <select id="category" required></select>
+                    </label>
+                    <label>
+                      金額 (円)
+                      <input id="amount" type="text" inputmode="numeric" autocomplete="off" placeholder="例: 50,000" required />
+                    </label>
+                    <label class="full memo-inline-field">
+                      メモ
+                      <input id="memo" type="hidden" value="" />
+                      <button
+                        type="button"
+                        id="memo-trigger"
+                        class="memo-compact-trigger"
+                        data-memo-trigger
+                        data-memo-target="memo"
+                        data-memo-title="毎月収支メモ"
+                        data-memo-placeholder="任意"
+                        data-memo-maxlength="50"
+                        aria-label="毎月収支メモを編集"
+                      >
+                        <span id="memo-preview" class="memo-compact-trigger-value" data-memo-preview>任意</span>
+                      </button>
+                    </label>
+                    <div class="full transaction-form-actions">
+                      <button type="submit" id="transaction-submit-button">追加する</button>
+                      <button type="button" id="transaction-cancel-button" class="ghost" hidden>キャンセル</button>
+                    </div>
+                  </form>
+                </section>
+              <section id="input-sub-panel-monthly-history" class="input-sub-panel" role="tabpanel" aria-labelledby="input-sub-tab-monthly-history" data-input-sub-panel="history" hidden>
+                <div class="filters history-filters shared-view-filters" data-shared-view-filter="history">
+                  <select id="history-year-filter" aria-label="取引履歴表示年"></select>
+                  <select id="history-month-filter" aria-label="取引履歴表示月"></select>
+                </div>
+                <section id="section-history" class="history-block monthly-history-card" data-nav-section="transactions">
+                  <ul id="transaction-list" class="list transaction-list"></ul>
+                </section>
+                <section id="planned-history-block" class="history-block">
+                  <section class="child-accordion history-planned-accordion" data-child-accordion>
+                    <button
+                      type="button"
+                      class="child-accordion-trigger history-planned-trigger"
+                      aria-expanded="false"
+                      aria-controls="panel-history-planned"
+                      id="trigger-history-planned"
+                    >
+                      <h3 id="planned-history-title">予定の取引履歴</h3>
+                      <span class="child-accordion-toggle" aria-hidden="true">＋</span>
+                    </button>
+                    <div
+                      class="child-accordion-panel history-planned-panel"
+                      id="panel-history-planned"
+                      role="region"
+                      aria-labelledby="trigger-history-planned"
+                      aria-hidden="true"
+                      hidden
+                    >
+                      <div class="child-accordion-panel-inner history-planned-panel-inner">
+                        <div id="planned-transaction-list" class="planned-transaction-list"></div>
+                      </div>
+                    </div>
+                  </section>
+                </section>
+              </section>
+              <section id="input-sub-panel-monthly-expense-balance" class="input-sub-panel" role="tabpanel" aria-labelledby="input-sub-tab-monthly-expense-balance" data-input-sub-panel="expense-balance" hidden>
+                <div class="filters shared-view-filters" data-shared-view-filter="expense">
+                  <select id="expense-view-mode" aria-label="支出分析表示モード">
+                    <option value="month">単月</option>
+                    <option value="average">平均</option>
+                  </select>
+                  <select id="expense-year-filter" aria-label="支出分析表示年"></select>
+                  <select id="expense-month-filter" aria-label="支出分析表示月"></select>
+                </div>
+                <section id="section-expense" class="monthly-expense-card expense-analysis-card" data-nav-section="expense">
+                  <div id="expense-chart" class="chart"></div>
+                </section>
+              </section>
+        </div>
+      </section>
+
+      <section id="section-life-events" class="card section-tone-life-events">
+        <div class="input-sub-switch" role="tablist" aria-label="ライフタブの切り替え" data-input-sub-switch="life">
+          <button type="button" id="input-sub-tab-life-register" class="input-sub-tab is-active" role="tab" aria-selected="true" aria-controls="input-sub-panel-life-register" data-input-sub-tab="register">登録</button>
+          <button type="button" id="input-sub-tab-life-registered" class="input-sub-tab" role="tab" aria-selected="false" aria-controls="input-sub-panel-life-registered" data-input-sub-tab="registered" tabindex="-1">登録済</button>
+        </div>
+        <div class="input-sub-content" data-input-sub-content="life">
+              <section id="input-sub-panel-life-register" class="input-sub-panel is-active" role="tabpanel" aria-labelledby="input-sub-tab-life-register" data-input-sub-panel="register">
+                <form id="life-event-form" class="grid life-event-form" autocomplete="off">
+                  <p id="life-event-edit-status" class="life-event-edit-status full" aria-live="polite" hidden>
+                    ライフイベントを編集中
+                  </p>
+                  <p id="life-event-error" class="life-event-error full" aria-live="polite" hidden></p>
+                  <label>
+                    発生年月
+                    <input id="life-event-month" type="month" required />
+                    <small id="life-event-age-preview" class="life-event-age-preview" aria-live="polite"></small>
+                  </label>
+                  <label>
+                    区分
+                    <select id="life-event-type" required>
+                      <option value="">選択してください</option>
+                      <option value="income">臨時収入</option>
+                      <option value="expense">臨時支出</option>
+                    </select>
+                  </label>
+                  <label>
+                    費目
+                    <select id="life-event-category" required></select>
+                  </label>
+                  <label>
+                    金額 (円)
+                    <input id="life-event-amount" type="text" inputmode="numeric" placeholder="例: 1,500,000" required />
+                  </label>
+                  <label class="full memo-inline-field">
+                    メモ（任意）
+                    <input id="life-event-memo" type="hidden" value="" />
+                    <button
+                      type="button"
+                      id="life-event-memo-trigger"
+                      class="memo-compact-trigger"
+                      data-memo-trigger
+                      data-memo-target="life-event-memo"
+                      data-memo-title="ライフイベントメモ"
+                      data-memo-placeholder="任意"
+                      data-memo-maxlength="120"
+                      aria-label="ライフイベントメモを入力"
+                    >
+                      <span class="memo-compact-trigger-label">メモ</span>
+                      <span id="life-event-memo-preview" class="memo-compact-trigger-value" data-memo-preview>任意</span>
+                    </button>
+                  </label>
+                  <div class="full life-event-form-actions">
+                    <button type="submit" id="life-event-submit-button">追加</button>
+                    <button type="button" id="life-event-cancel-button" class="ghost" hidden>キャンセル</button>
+                  </div>
+                </form>
+              </section>
+              <section id="input-sub-panel-life-registered" class="input-sub-panel" role="tabpanel" aria-labelledby="input-sub-tab-life-registered" data-input-sub-panel="registered" hidden>
+                <div id="life-event-list" class="life-event-list"></div>
+              </section>
+        </div>
+      </section>
+
+      <section id="section-assets" class="card section-tone-assets asset-main-section" data-nav-section="assets">
+        <div class="asset-main-header">
+          <div class="section-heading">
+            <p class="section-role-badge">将来の資産を確認</p>
+            <h2>資産シミュレーション</h2>
+            <p class="section-description">
+              資産形成・キャッシュフローを切り替えて確認できます。
+            </p>
+          </div>
+        </div>
+        <div class="asset-main-tabbar">
+          <div class="asset-main-tabs" role="tablist" aria-label="資産シミュレーションの表示切替">
+            <button type="button" id="asset-main-tab-formation" class="asset-main-tab is-active" role="tab" aria-selected="true" aria-controls="asset-main-panel-formation" data-asset-main-tab="formation">資産形成</button>
+            <button type="button" id="asset-main-tab-cashflow" class="asset-main-tab" role="tab" aria-selected="false" aria-controls="asset-main-panel-cashflow" data-asset-main-tab="cashflow" tabindex="-1">形成CF</button>
+          </div>
+        </div>
+        <div class="asset-main-content">
+          <div id="asset-main-panel-formation" class="asset-main-panel is-active" role="tabpanel" aria-labelledby="asset-main-tab-formation" data-asset-main-panel="formation">
+            <section class="asset-plan-register-section" aria-labelledby="asset-plan-register-heading">
+              <h3 id="asset-plan-register-heading" class="profile-form-section-heading">資産形成を登録</h3>
+              <div class="input-sub-switch" role="tablist" aria-label="資産形成タブの切り替え" data-input-sub-switch="asset-formation">
+                <button type="button" id="input-sub-tab-asset-formation-register" class="input-sub-tab is-active" role="tab" aria-selected="true" aria-controls="input-sub-panel-asset-formation-register" data-input-sub-tab="register">登録</button>
+                <button type="button" id="input-sub-tab-asset-formation-registered" class="input-sub-tab" role="tab" aria-selected="false" aria-controls="input-sub-panel-asset-formation-registered" data-input-sub-tab="registered" tabindex="-1">登録済</button>
+              </div>
+              <div class="input-sub-content" data-input-sub-content="asset-formation">
+                <section id="input-sub-panel-asset-formation-register" class="input-sub-panel is-active" role="tabpanel" aria-labelledby="input-sub-tab-asset-formation-register" data-input-sub-panel="register">
+                  <p id="asset-basic-edit-status" class="recurring-edit-status full" aria-live="polite" hidden>
+                    資産形成を編集中
+                  </p>
+                  <div id="asset-plan-editor-list" class="plan-editor-list" data-plan-editor-list></div>
+                  <div class="profile-form-actions asset-plan-register-actions">
+                    <button type="button" id="asset-profile-submit-button" class="profile-save-settings-button">設定を保存</button>
+                    <button type="button" id="asset-profile-cancel-button" class="ghost" hidden>キャンセル</button>
+                  </div>
+                </section>
+                <section id="input-sub-panel-asset-formation-registered" class="input-sub-panel" role="tabpanel" aria-labelledby="input-sub-tab-asset-formation-registered" data-input-sub-panel="registered" hidden>
+                  <div id="plan-list" class="plan-list" aria-live="polite"></div>
+                </section>
+              </div>
+            </section>
+            <div id="asset-forecast" class="asset-forecast asset-main-first-content"></div>
+          </div>
+          <div id="asset-main-panel-cashflow" class="asset-main-panel" role="tabpanel" aria-labelledby="asset-main-tab-cashflow" data-asset-main-panel="cashflow" hidden>
+            <div class="asset-main-panel-body cashflow-panel-body">
+              <div class="cashflow-sub-tabbar">
+                <div class="cashflow-sub-tabs" role="tablist" aria-label="キャッシュフロー内の表示切替">
+                  <button type="button" id="cashflow-sub-tab-income-settings" class="cashflow-sub-tab is-active" role="tab" aria-selected="true" aria-controls="cashflow-sub-panel-income-settings" data-cashflow-sub-tab="income-settings">収入設定</button>
+                  <button type="button" id="cashflow-sub-tab-expense-settings" class="cashflow-sub-tab" role="tab" aria-selected="false" aria-controls="cashflow-sub-panel-expense-settings" data-cashflow-sub-tab="expense-settings" tabindex="-1">支出設定</button>
+                  <button type="button" id="cashflow-sub-tab-cf" class="cashflow-sub-tab" role="tab" aria-selected="false" aria-controls="cashflow-sub-panel-cf" data-cashflow-sub-tab="cf" tabindex="-1">CF表</button>
+                </div>
+              </div>
+              <section id="cashflow-sub-panel-income-settings" class="cashflow-sub-panel is-active" role="tabpanel" aria-labelledby="cashflow-sub-tab-income-settings" data-cashflow-sub-panel="income-settings">
+                <div class="cashflow-income-settings asset-main-first-content">
+                  <form id="cashflow-income-settings-form" class="cashflow-income-settings-form" autocomplete="off">
+                    <div class="cashflow-income-core-grid">
+                      <label>
+                        現在の収入昇給率（%）
+                        <input id="cashflow-salary-growth-rate-before-60" type="number" inputmode="decimal" min="-10" max="20" step="any" />
+                      </label>
+                      <label>
+                        現在の働き方の終了年月
+                        <input id="cashflow-income-retirement-month" type="month" />
+                      </label>
+                    </div>
+                    <div class="cashflow-income-scenarios">
+                      <div class="cashflow-income-scenarios-header">
+                        <p class="cashflow-income-scenarios-title">収入シナリオ</p>
+                        <button type="button" id="cashflow-income-scenario-add" class="small">シナリオを追加</button>
+                      </div>
+                      <p class="cashflow-income-scenario-note">100で維持、100超で増、100未満で減</p>
+                      <div id="cashflow-income-scenario-list" class="cashflow-income-scenario-list"></div>
+                    </div>
+                  </form>
+                </div>
+              </section>
+              <section id="cashflow-sub-panel-expense-settings" class="cashflow-sub-panel" role="tabpanel" aria-labelledby="cashflow-sub-tab-expense-settings" data-cashflow-sub-panel="expense-settings" hidden>
+                <div class="cashflow-expense-settings asset-main-first-content">
+                  <form id="cashflow-expense-settings-form" class="cashflow-income-settings-form" autocomplete="off">
+                    <div class="cashflow-income-core-grid">
+                      <label>
+                        物価上昇率（%）
+                        <input id="cashflow-inflation-rate" type="number" inputmode="decimal" min="0" max="20" step="0.1" />
+                      </label>
+                    </div>
+                    <div class="cashflow-income-scenarios">
+                      <div class="cashflow-income-scenarios-header">
+                        <p class="cashflow-income-scenarios-title">支出シナリオ</p>
+                        <button type="button" id="cashflow-expense-scenario-add" class="small">シナリオを追加</button>
+                      </div>
+                      <p class="cashflow-income-scenario-note">定期支出・資産形成支出を除く生活費を設定</p>
+                      <div id="cashflow-expense-scenario-list" class="cashflow-income-scenario-list"></div>
+                    </div>
+                  </form>
+                </div>
+              </section>
+              <section id="cashflow-sub-panel-cf" class="cashflow-sub-panel" role="tabpanel" aria-labelledby="cashflow-sub-tab-cf" data-cashflow-sub-panel="cf" hidden>
+                <div class="cashflow-table-wrap" id="cashflow-table-wrap"></div>
+                <div class="cashflow-actions">
+                  <button type="button" id="cashflow-download-pdf-button">PDF保存</button>
+                </div>
+                <div class="cashflow-footnotes" aria-label="キャッシュフロー補足">
+                  <p class="cashflow-forecast-note">※将来の見込みを表示します。</p>
+                  <p class="cashflow-scroll-hint">左右にスワイプで確認できます。</p>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <button type="button" id="floating-top-button" class="floating-top-button" aria-label="ページ最上部へ戻る">
+      <span class="floating-top-button-icon" aria-hidden="true">↑</span>
+      <span class="floating-top-button-label">TOP</span>
+    </button>
+
+    <div id="memo-modal" class="memo-modal" hidden>
+      <div class="memo-modal-backdrop" data-memo-modal-close></div>
+      <section class="memo-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="memo-modal-title">
+        <h2 id="memo-modal-title" class="memo-modal-title">メモを入力</h2>
+        <input
+          id="memo-modal-input"
+          class="memo-modal-input"
+          type="text"
+          inputmode="text"
+          maxlength="120"
+          placeholder="メモを入力"
+        />
+        <div class="memo-modal-actions">
+          <button type="button" id="memo-modal-cancel" class="ghost">キャンセル</button>
+          <button type="button" id="memo-modal-save">保存</button>
+        </div>
+      </section>
+    </div>
+
+    <template id="transaction-item-template">
+      <li class="item">
+        <div>
+          <p class="meta"></p>
+          <p class="memo"></p>
+        </div>
+        <div class="amount-wrap">
+          <p class="amount"></p>
+          <div class="transaction-actions">
+            <button class="edit" type="button">修正</button>
+            <button class="delete" type="button">削除</button>
+          </div>
+        </div>
+      </li>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
