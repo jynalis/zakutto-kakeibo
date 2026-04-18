@@ -5193,6 +5193,92 @@ function buildPlanBalancesAtMonth(settings, targetMonth, options = {}) {
   }));
 }
 
+function resolveCurrentAssetGraphBaseMonth(settings, plan, targetMonth) {
+  const configuredBaseMonth = parseMonth(settings?.entryStartMonth) ? settings.entryStartMonth : "";
+  if (configuredBaseMonth) return configuredBaseMonth;
+
+  const monthlyStartMonths = (Array.isArray(plan?.monthlyContributions) ? plan.monthlyContributions : [])
+    .map((history) => history?.startMonth)
+    .filter((month) => parseMonth(month));
+  const lumpStartMonths = (Array.isArray(plan?.lumpSums) ? plan.lumpSums : [])
+    .map((history) => history?.month)
+    .filter((month) => parseMonth(month));
+  const candidateMonths = [...monthlyStartMonths, ...lumpStartMonths].sort(compareMonth);
+  if (candidateMonths.length > 0) return candidateMonths[0];
+
+  return parseMonth(targetMonth) ? targetMonth : todayISO().slice(0, 7);
+}
+
+function projectCurrentAssetGraphPlanBalance(plan, settings, targetMonth, options = {}) {
+  if (!parseMonth(targetMonth)) return {
+    amount: 0,
+    baseMonth: null,
+    targetMonth,
+    appliedMonthly: [],
+    appliedLumpSums: [],
+  };
+
+  const asOfDate = resolveAsOfDate(options?.asOfDate);
+  const baseMonth = resolveCurrentAssetGraphBaseMonth(settings, plan, targetMonth);
+  if (!baseMonth || compareMonth(baseMonth, targetMonth) > 0) {
+    return {
+      amount: 0,
+      baseMonth,
+      targetMonth,
+      appliedMonthly: [],
+      appliedLumpSums: [],
+    };
+  }
+
+  const annualReturn = parseRateInput(plan.expectedReturn) / 100;
+  const monthlyRate = Math.pow(1 + annualReturn, 1 / 12) - 1;
+  let month = baseMonth;
+  let total = Math.max(Number(plan?.initialPrincipalAtStartMonth) || 0, 0);
+  const appliedMonthly = [];
+  const appliedLumpSums = [];
+
+  while (compareMonth(month, targetMonth) <= 0) {
+    const canApplyMonth = shouldApplyPlanMonthByAsOfDate(plan, month, asOfDate);
+    const monthlyAmount = canApplyMonth ? findActiveMonthlyContribution(plan, month) : 0;
+    if (monthlyAmount > 0) {
+      appliedMonthly.push({ month, amount: monthlyAmount });
+      total += monthlyAmount;
+    }
+
+    const lumpSums = canApplyMonth ? getLumpSumsOnMonth(plan, month) : [];
+    lumpSums.forEach((amount) => {
+      if (amount > 0) {
+        appliedLumpSums.push({ month, amount });
+        total += amount;
+      }
+    });
+
+    total *= 1 + monthlyRate;
+    month = addOneMonth(month);
+  }
+
+  return {
+    amount: Math.round(total),
+    baseMonth,
+    targetMonth,
+    appliedMonthly,
+    appliedLumpSums,
+  };
+}
+
+function buildCurrentAssetGraphRows(settings, targetMonth, options = {}) {
+  if (!parseMonth(targetMonth) || !Array.isArray(settings?.plans)) return [];
+
+  return settings.plans.map((plan) => {
+    const currentProjection = projectCurrentAssetGraphPlanBalance(plan, settings, targetMonth, options);
+    return {
+      ...plan,
+      currentAmount: currentProjection.amount,
+      currentProjection,
+    };
+  });
+}
+
 function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, options = {}) {
   const annualReturn = parseRateInput(plan.expectedReturn) / 100;
   const monthlyRate = Math.pow(1 + annualReturn, 1 / 12) - 1;
@@ -5365,15 +5451,8 @@ function renderAssetForecast(settings) {
     };
   });
 
-  const currentRows = settings.plans.map((plan) => {
-    const currentProjection = projectPlanAssetDetails(plan, settings.birthDate, currentAssetTargetMonth, {
-      asOfDate: currentAssetBaseDate,
-    });
-    return {
-      ...plan,
-      currentAmount: currentProjection.amount,
-      currentProjection,
-    };
+  const currentRows = buildCurrentAssetGraphRows(settings, currentAssetTargetMonth, {
+    asOfDate: currentAssetBaseDate,
   });
 
   const totalAt65 = secondaryAssetOutlook.totalAtAge;
@@ -5448,9 +5527,7 @@ function renderAssetForecast(settings) {
   }
   const formationChartSection = assetForecast.querySelector(".asset-composition");
 
-  const currentTotal = calculateFinancialAssetTotalAtMonth(settings, currentAssetTargetMonth, {
-    asOfDate: currentAssetBaseDate,
-  });
+  const currentTotal = currentRows.reduce((sum, plan) => sum + Math.max(Number(plan.currentAmount) || 0, 0), 0);
   if (currentRows.length === 0 || currentTotal === 0) {
     const empty = document.createElement("p");
     empty.className = "chart-empty";
