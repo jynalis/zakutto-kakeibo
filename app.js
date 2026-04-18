@@ -5441,11 +5441,13 @@ function createPlanBlock(plan = {}) {
             </label>
           </div>
           <div class="plan-expected-return-suggest-row">
-            <button type="button" class="small plan-expected-return-suggest">提案値に戻す</button>
+            <button type="button" class="plan-expected-return-suggest">提案値に戻す</button>
           </div>
           <div class="plan-withdrawal-stack">
-            <label>引き落とし日<input class="plan-withdrawal-day" type="number" min="1" max="31" step="1" value="${normalizedPlan.withdrawalDay ?? 1}" /></label>
-            <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.withdrawMonth || ""}" /></label>
+            <div class="plan-withdrawal-date-row">
+              <label>引き落とし日<input class="plan-withdrawal-day" type="number" min="1" max="31" step="1" value="${normalizedPlan.withdrawalDay ?? 1}" /></label>
+              <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.withdrawMonth || ""}" /></label>
+            </div>
             <fieldset class="plan-withdrawal-settings" aria-label="取崩設定">
               <legend>取崩設定</legend>
               <div class="plan-withdrawal-settings-grid">
