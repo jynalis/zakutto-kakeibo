@@ -4201,27 +4201,40 @@ function buildAssetWithdrawalTransfersByMonth(settings) {
   }, {});
 }
 
-function isPlanWithdrawalActiveInRange(plan, yearStartMonth, yearEndMonth) {
-  if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return false;
-  const startDate = parseMonth(plan?.withdrawalStartDate)
-    ? plan.withdrawalStartDate
-    : (parseMonth(plan?.installmentStartDate) ? plan.installmentStartDate : "");
-  if (!startDate) return false;
-  return compareMonth(startDate, yearEndMonth) <= 0;
+function calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEndMonth) {
+  if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return 0;
+  if (compareMonth(yearStartMonth, yearEndMonth) > 0) return 0;
+  const startDate = parseMonth(plan?.installmentStartDate)
+    ? plan.installmentStartDate
+    : (parseMonth(plan?.withdrawalStartDate) ? plan.withdrawalStartDate : "");
+  if (!startDate) return 0;
+
+  let activeMonths = 0;
+  const { year } = parseMonth(yearStartMonth);
+  for (let monthIndex = 0; monthIndex < 12; monthIndex += 1) {
+    const month = formatMonth(year, monthIndex);
+    if (compareMonth(month, yearStartMonth) < 0 || compareMonth(month, yearEndMonth) > 0) continue;
+    if (compareMonth(month, startDate) < 0) continue;
+    activeMonths += 1;
+  }
+  return activeMonths;
 }
 
-function resolvePlanAnnualWithdrawalAmount(plan, yearStartBalance) {
+function resolvePlanAnnualWithdrawalAmount(plan, yearStartBalance, activeMonthsInYear = 12) {
   const safeYearStartBalance = Math.max(Number(yearStartBalance) || 0, 0);
   if (safeYearStartBalance <= 0) return 0;
+  const safeActiveMonths = Math.max(Math.min(Number(activeMonthsInYear) || 0, 12), 0);
+  if (safeActiveMonths <= 0) return 0;
+  const prorationFactor = safeActiveMonths / 12;
 
   if (plan?.withdrawalMode === "amount") {
     const annualAmount = Math.max(Number(plan?.withdrawalAmount) || 0, 0);
-    return Math.min(annualAmount, safeYearStartBalance);
+    return Math.min(annualAmount * prorationFactor, safeYearStartBalance);
   }
 
   if (plan?.withdrawalMode === "rate") {
     const annualRate = Math.max(parseRateInput(plan?.withdrawalRate), 0) / 100;
-    const calculated = safeYearStartBalance * annualRate;
+    const calculated = safeYearStartBalance * annualRate * prorationFactor;
     return Math.min(calculated, safeYearStartBalance);
   }
 
@@ -4280,8 +4293,9 @@ function buildAnnualAssetWithdrawalTransfersByYear({
       const annualReturn = yearStartBalance * annualReturnRate;
       const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
       const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
-      const annualWithdrawal = isPlanWithdrawalActiveInRange(plan, yearStartMonth, yearEndMonth)
-        ? resolvePlanAnnualWithdrawalAmount(plan, yearStartBalance)
+      const activeMonthsInYear = calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEndMonth);
+      const annualWithdrawal = activeMonthsInYear > 0
+        ? resolvePlanAnnualWithdrawalAmount(plan, yearStartBalance, activeMonthsInYear)
         : 0;
 
       totalWithdrawalForYear += annualWithdrawal;
