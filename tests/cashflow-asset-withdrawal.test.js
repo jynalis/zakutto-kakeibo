@@ -73,6 +73,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'p1',
           expectedReturn: 0,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [],
           lumpSums: [],
           withdrawalStartDate: '2025-01',
@@ -83,6 +84,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'p2',
           expectedReturn: 0,
           currentValue: 500000,
+          initialPrincipalAtStartMonth: 500000,
           monthlyContributions: [],
           lumpSums: [],
           withdrawalStartDate: '2025-01',
@@ -113,6 +115,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'amount-prorate',
           expectedReturn: 0,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [],
           lumpSums: [],
           installmentStartDate: '2025-07',
@@ -143,6 +146,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'rate-prorate',
           expectedReturn: 0,
           currentValue: 1200000,
+          initialPrincipalAtStartMonth: 1200000,
           monthlyContributions: [],
           lumpSums: [],
           installmentStartDate: '2025-07',
@@ -171,6 +175,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'installment-rate-keys',
           expectedReturn: 0,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [],
           lumpSums: [],
           useInstallment: true,
@@ -200,6 +205,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'lump-rate-keys',
           expectedReturn: 0,
           currentValue: 200000,
+          initialPrincipalAtStartMonth: 200000,
           monthlyContributions: [],
           lumpSums: [],
           useLumpSum: true,
@@ -228,6 +234,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
         {
           expectedReturn: 0,
           currentValue: 300000,
+          initialPrincipalAtStartMonth: 300000,
           monthlyContributions: [],
           lumpSums: [],
           useLumpSum: true,
@@ -257,6 +264,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           expectedReturn: 10,
           currentAutoYield: 99,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [],
           lumpSums: [],
           useInstallment: true,
@@ -285,6 +293,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
         {
           expectedReturn: 10,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [
             { startMonth: '2025-01', amount: 100000 },
           ],
@@ -312,6 +321,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
         {
           expectedReturn: 0,
           currentValue: 100000,
+          initialPrincipalAtStartMonth: 100000,
           monthlyContributions: [],
           lumpSums: [],
           useLumpSum: true,
@@ -322,6 +332,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
         {
           expectedReturn: 0,
           currentValue: 200000,
+          initialPrincipalAtStartMonth: 200000,
           monthlyContributions: [],
           lumpSums: [],
           useLumpSum: false,
@@ -347,6 +358,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'contract-a',
           expectedReturn: 12,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [],
           lumpSums: [],
         },
@@ -354,6 +366,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'contract-b',
           expectedReturn: 0,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [],
           lumpSums: [],
         },
@@ -378,6 +391,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'partial-year',
           expectedReturn: 12,
           currentValue: 1200000,
+          initialPrincipalAtStartMonth: 1200000,
           monthlyContributions: [],
           lumpSums: [],
         },
@@ -402,6 +416,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'stop-contribution',
           expectedReturn: 0,
           currentValue: 0,
+          initialPrincipalAtStartMonth: 0,
           monthlyContributions: [
             { startMonth: '2025-01', amount: 100000 },
           ],
@@ -429,6 +444,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'double-count-guard',
           expectedReturn: 0,
           currentValue: 5000000,
+          initialPrincipalAtStartMonth: 5000000,
           monthlyContributions: [],
           lumpSums: [
             { month: '2026-02', amount: 200000 },
@@ -455,6 +471,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'lump-rate-carry-in',
           expectedReturn: 0,
           currentValue: 400000,
+          initialPrincipalAtStartMonth: 400000,
           monthlyContributions: [
             { startMonth: '2022-01', amount: 50000 },
             { startMonth: '2023-01', amount: 0 },
@@ -489,6 +506,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'unset-start',
           expectedReturn: 0,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [],
           lumpSums: [],
           withdrawalMode: 'amount',
@@ -516,6 +534,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'rate-plan',
           expectedReturn: 10,
           currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
           monthlyContributions: [],
           lumpSums: [],
           withdrawalStartDate: '2024-01',
@@ -526,6 +545,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'cap-plan',
           expectedReturn: 0,
           currentValue: 100000,
+          initialPrincipalAtStartMonth: 100000,
           monthlyContributions: [],
           lumpSums: [],
           withdrawalStartDate: '2024-01',
@@ -555,6 +575,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'hybrid-plan',
           expectedReturn: 0,
           currentValue: 500000,
+          initialPrincipalAtStartMonth: 500000,
           monthlyContributions: [],
           lumpSums: [],
           useLumpSum: true,
@@ -590,6 +611,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'p-end-zero',
           expectedReturn: 0,
           currentValue: 500000,
+          initialPrincipalAtStartMonth: 500000,
           monthlyContributions: [],
           lumpSums: [],
           withdrawalStartDate: '2025-01',
@@ -620,6 +642,7 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
           id: 'installment-rate-carry-in',
           expectedReturn: 0,
           currentValue: 500000,
+          initialPrincipalAtStartMonth: 500000,
           monthlyContributions: [
             { startMonth: '2023-01', amount: 100000 },
             { startMonth: '2024-01', amount: 0 },
@@ -651,10 +674,11 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
   assert.strictEqual(calculateSuggestedWithdrawMonth({ birthDate: '' }), '');
 })();
 
-(function testProjectionStartsFromCurrentValueAndIgnoresHistoricalRebuild() {
+(function testProjectionStartsFromInitialPrincipalAtStartMonthAndIgnoresCurrentValue() {
   const plan = {
     expectedReturn: 0,
-    currentValue: 1000000,
+    currentValue: 0,
+    initialPrincipalAtStartMonth: 1000000,
     withdrawalDay: 1,
     monthlyContributions: [
       { startMonth: '2022-01', amount: 30000 },
@@ -687,6 +711,36 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
       { month: '2024-06', amount: 100000 },
     ])
   );
+})();
+
+(function testProjectionIgnoresCurrentValueWhenInitialPrincipalIsSet() {
+  const commonPlan = {
+    expectedReturn: 0,
+    initialPrincipalAtStartMonth: 800000,
+    withdrawalDay: 1,
+    monthlyContributions: [
+      { startMonth: '2024-05', amount: 20000 },
+    ],
+    lumpSums: [],
+  };
+
+  const highCurrentValueProjection = projectPlanAssetDetails({
+    ...commonPlan,
+    currentValue: 9000000,
+  }, '', '2024-06', {
+    baseMonth: '2024-05',
+    asOfDate: '2024-06-30',
+  });
+  const zeroCurrentValueProjection = projectPlanAssetDetails({
+    ...commonPlan,
+    currentValue: 0,
+  }, '', '2024-06', {
+    baseMonth: '2024-05',
+    asOfDate: '2024-06-30',
+  });
+
+  assert.strictEqual(highCurrentValueProjection.amount, 840000);
+  assert.strictEqual(zeroCurrentValueProjection.amount, 840000);
 })();
 
 console.log('cashflow asset withdrawal tests passed');
