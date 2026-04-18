@@ -100,6 +100,91 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2027], 120000);
 })();
 
+(function testInstallmentStartMonthProratesFirstYearForAmountMode() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'amount-prorate',
+          expectedReturn: 0,
+          currentValue: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          installmentStartDate: '2025-07',
+          withdrawalMode: 'amount',
+          withdrawalAmount: 600000,
+        },
+      ],
+    },
+    startYear: 2024,
+    endYear: 2027,
+    startMonth: '2024-01',
+    referenceMonth: '2027-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2024], 0);
+  assert.strictEqual(transfers[2025], 300000);
+  assert.strictEqual(transfers[2026], 600000);
+  assert.strictEqual(transfers[2027], 100000);
+})();
+
+(function testInstallmentStartMonthProratesFirstYearForRateMode() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'rate-prorate',
+          expectedReturn: 0,
+          currentValue: 1200000,
+          monthlyContributions: [],
+          lumpSums: [],
+          installmentStartDate: '2025-07',
+          withdrawalMode: 'rate',
+          withdrawalRate: 4,
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2026,
+    startMonth: '2025-01',
+    referenceMonth: '2026-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2025], 24000);
+  assert.strictEqual(transfers[2026], 47040);
+})();
+
+(function testUnsetInstallmentStartDateDoesNotApplyWithdrawals() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'unset-start',
+          expectedReturn: 0,
+          currentValue: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          withdrawalMode: 'amount',
+          withdrawalAmount: 120000,
+        },
+      ],
+    },
+    startYear: 2024,
+    endYear: 2025,
+    startMonth: '2024-01',
+    referenceMonth: '2025-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2024], 0);
+  assert.strictEqual(transfers[2025], 0);
+})();
+
 (function testRateModeUsesYearStartBalanceAndCap() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
     settings: {
