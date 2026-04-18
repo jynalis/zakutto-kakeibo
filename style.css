@@ -1527,7 +1527,7 @@ button.plan-card-trigger {
 
 .plan-withdrawal-date-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -1598,23 +1598,74 @@ button.plan-card-trigger {
   border-radius: 10px;
   display: grid;
   gap: 10px;
+  background: #f8fbff;
 }
 
-.plan-withdrawal-settings legend {
-  padding: 0 4px;
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: #2a3f57;
-}
-
-.plan-withdrawal-settings-grid {
-  display: grid;
-  gap: 10px;
-}
-
-.plan-withdrawal-settings-grid .withdraw-row-ages {
+.plan-withdrawal-settings-header {
   display: grid;
   gap: 8px;
+}
+
+.plan-withdrawal-settings-header h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #233f5e;
+}
+
+.plan-segment-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid #bdd5e5;
+  border-radius: 999px;
+  padding: 3px;
+  background: #fff;
+  gap: 4px;
+}
+
+.plan-sub-segment-wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.plan-sub-segment-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4b627b;
+}
+
+.plan-segment-button {
+  border: none;
+  border-radius: 999px;
+  min-height: 38px;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #4d6580;
+  background: transparent;
+}
+
+.plan-segment-button.is-active {
+  background: linear-gradient(180deg, #2f7db6 0%, #1f6aa5 100%);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(31, 106, 165, 0.25);
+}
+
+.plan-segment-button-sm {
+  min-height: 34px;
+  font-size: 0.82rem;
+}
+
+.plan-lump-amount-mode-control,
+.plan-lump-amount-mode-control-hybrid,
+.plan-withdrawal-mode-control,
+.plan-withdrawal-mode-control-hybrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.plan-withdrawal-mode-panel {
+  display: grid;
+  gap: 10px;
 }
 
 .plan-withdrawal-age-row {
@@ -1623,17 +1674,33 @@ button.plan-card-trigger {
   gap: 10px;
 }
 
-.plan-withdrawal-settings-grid .withdraw-row-mode,
-.plan-withdrawal-settings-grid .withdraw-row-value {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
 .plan-withdrawal-mode-row,
 .plan-withdrawal-amount-wrap,
-.plan-withdrawal-rate-wrap {
+.plan-withdrawal-rate-wrap,
+.plan-lump-sum-amount-wrap,
+.plan-lump-sum-amount-wrap-hybrid,
+.plan-withdrawal-amount-wrap-hybrid,
+.plan-withdrawal-rate-wrap-hybrid {
   width: 100%;
+}
+
+.plan-hybrid-section {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d9e5f1;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.plan-hybrid-section + .plan-hybrid-section {
+  border-top: 1px solid #d9e5f1;
+}
+
+.plan-hybrid-section h5 {
+  margin: 0;
+  font-size: 0.83rem;
+  color: #274765;
 }
 
 .change-wrap {
