@@ -1658,8 +1658,10 @@ button.plan-card-trigger {
 
 .plan-lump-amount-mode-control,
 .plan-lump-amount-mode-control-hybrid,
-.plan-withdrawal-mode-control,
-.plan-withdrawal-mode-control-hybrid {
+.plan-lump-sum-mode-control,
+.plan-lump-sum-mode-control-hybrid,
+.plan-installment-mode-control,
+.plan-installment-mode-control-hybrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -1669,12 +1671,14 @@ button.plan-card-trigger {
 }
 
 .plan-withdrawal-mode-panel[hidden],
-.plan-withdrawal-amount-wrap[hidden],
-.plan-withdrawal-rate-wrap[hidden],
 .plan-lump-sum-amount-wrap[hidden],
+.plan-lump-sum-rate-wrap[hidden],
 .plan-lump-sum-amount-wrap-hybrid[hidden],
-.plan-withdrawal-amount-wrap-hybrid[hidden],
-.plan-withdrawal-rate-wrap-hybrid[hidden],
+.plan-lump-sum-rate-wrap-hybrid[hidden],
+.plan-installment-amount-wrap[hidden],
+.plan-installment-rate-wrap[hidden],
+.plan-installment-amount-wrap-hybrid[hidden],
+.plan-installment-rate-wrap-hybrid[hidden],
 .is-hidden {
   display: none !important;
 }
@@ -1686,12 +1690,14 @@ button.plan-card-trigger {
 }
 
 .plan-withdrawal-mode-row,
-.plan-withdrawal-amount-wrap,
-.plan-withdrawal-rate-wrap,
 .plan-lump-sum-amount-wrap,
+.plan-lump-sum-rate-wrap,
 .plan-lump-sum-amount-wrap-hybrid,
-.plan-withdrawal-amount-wrap-hybrid,
-.plan-withdrawal-rate-wrap-hybrid {
+.plan-lump-sum-rate-wrap-hybrid,
+.plan-installment-amount-wrap,
+.plan-installment-rate-wrap,
+.plan-installment-amount-wrap-hybrid,
+.plan-installment-rate-wrap-hybrid {
   width: 100%;
 }
 
