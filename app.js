@@ -4399,7 +4399,7 @@ function calculateCashflowContractProjection(contract, { startYear, endYear, sta
 
   const annualReturnRate = Math.max(parseRateInput(contract?.expectedReturn), 0) / 100;
   const monthlyReturnRate = Math.pow(1 + annualReturnRate, 1 / 12) - 1;
-  let balance = 0;
+  let balance = Math.max(Number(contract?.currentValue) || 0, 0);
   const projectionByYear = {};
 
   months.forEach((month) => {
@@ -4457,9 +4457,13 @@ function calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMon
 
 function calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth) {
   const lumpSums = Array.isArray(plan?.lumpSums) ? plan.lumpSums : [];
+  const appliedMonths = new Set();
   return lumpSums.reduce((sum, history) => {
     if (!parseMonth(history?.month)) return sum;
     if (compareMonth(history.month, yearStartMonth) < 0 || compareMonth(history.month, yearEndMonth) > 0) return sum;
+    if (!shouldApplyPlanContributionForMonth(plan, "", history.month)) return sum;
+    if (appliedMonths.has(history.month)) return sum;
+    appliedMonths.add(history.month);
     return sum + Math.max(Number(history.amount) || 0, 0);
   }, 0);
 }
@@ -4533,10 +4537,14 @@ function buildAssetLumpInvestmentsByMonth(settings) {
   if (!Array.isArray(settings?.plans) || settings.plans.length === 0) return {};
   return settings.plans.reduce((map, plan) => {
     const lumpSums = Array.isArray(plan?.lumpSums) ? plan.lumpSums : [];
+    const appliedMonths = new Set();
     lumpSums.forEach((history) => {
       if (!parseMonth(history.month)) return;
+      if (!shouldApplyPlanContributionForMonth(plan, settings.birthDate, history.month)) return;
+      if (appliedMonths.has(history.month)) return;
       const amount = Math.max(Number(history.amount) || 0, 0);
       if (amount <= 0) return;
+      appliedMonths.add(history.month);
       map[history.month] = (map[history.month] || 0) + amount;
     });
     return map;
