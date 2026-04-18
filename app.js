@@ -608,6 +608,29 @@ function parseAmountInput(value) {
   return normalized ? Number(normalized) : 0;
 }
 
+function parseOptionalAgeInput(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(parsed, 0);
+}
+
+function parseOptionalAmountInput(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const amount = parseAmountInput(raw);
+  return Number.isFinite(amount) ? Math.max(amount, 0) : null;
+}
+
+function parseOptionalRateInput(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(parsed, 0);
+}
+
 function formatAmountInputValue(value, { allowZero = false } = {}) {
   const amount = parseAmountInput(value);
   if (amount > 0) return numberWithComma.format(amount);
@@ -972,6 +995,10 @@ function normalizePlan(rawPlan) {
   const normalizedCurrentValue = Number(plan.currentValue);
   const currentValue = Number.isFinite(normalizedCurrentValue) ? normalizedCurrentValue : null;
   const normalizedCurrentAutoYield = Number(plan.currentAutoYield);
+  const normalizedWithdrawalStartAge = Number(plan.withdrawalStartAge);
+  const normalizedWithdrawalEndAge = Number(plan.withdrawalEndAge);
+  const normalizedWithdrawalAmount = Number(plan.withdrawalAmount);
+  const normalizedWithdrawalRate = Number(plan.withdrawalRate);
   return {
     id: plan.id || crypto.randomUUID(),
     type: PLAN_TYPES.includes(plan.type) ? plan.type : "NISA",
@@ -981,6 +1008,11 @@ function normalizePlan(rawPlan) {
     currentAutoYield: Number.isFinite(normalizedCurrentAutoYield) ? normalizedCurrentAutoYield : null,
     withdrawalDay: Math.max(Number(plan.withdrawalDay) || 1, 1),
     withdrawMonth: parseMonth(plan.withdrawMonth) ? plan.withdrawMonth : "",
+    withdrawalStartAge: Number.isFinite(normalizedWithdrawalStartAge) ? Math.max(normalizedWithdrawalStartAge, 0) : null,
+    withdrawalEndAge: Number.isFinite(normalizedWithdrawalEndAge) ? Math.max(normalizedWithdrawalEndAge, 0) : null,
+    withdrawalMode: plan.withdrawalMode === "amount" || plan.withdrawalMode === "rate" ? plan.withdrawalMode : "",
+    withdrawalAmount: Number.isFinite(normalizedWithdrawalAmount) ? Math.max(normalizedWithdrawalAmount, 0) : null,
+    withdrawalRate: Number.isFinite(normalizedWithdrawalRate) ? Math.max(normalizedWithdrawalRate, 0) : null,
     lumpSums: normalizeLumpSumHistory(plan),
     monthlyContributions: normalizeMonthlyContributionHistory(plan),
   };
@@ -4951,7 +4983,7 @@ function renderAssetForecast(settings) {
   `;
   const withdrawForecastHtml = `
     <section class="asset-withdraw-layout asset-outlook">
-      <p class="section-description">取崩し予定を設定した契約のみ表示します。取崩年月の変更は「基本情報・資産形成設定」で行えます。</p>
+      <p class="section-description">取崩し予定を設定した契約のみ表示します。一括解約年月の変更は「基本情報・資産形成設定」で行えます。</p>
       <h4 class="asset-withdraw-heading">${createAssetOutlookWithdrawTitle(TARGET_AGE_SECONDARY)}</h4>
       ${earlyWithdrawItemsHtml
     ? `<ul class="asset-list asset-withdraw-list" aria-label="${createAssetOutlookWithdrawTitle(TARGET_AGE_SECONDARY)}">${earlyWithdrawItemsHtml}</ul>`
@@ -5407,9 +5439,26 @@ function createPlanBlock(plan = {}) {
             <input class="plan-expected-return" type="number" inputmode="decimal" step="0.01" value="${normalizedPlan.expectedReturn ?? ""}" />
             <button type="button" class="small plan-expected-return-suggest">提案値に戻す</button>
           </label>
-          <label>取崩年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.withdrawMonth || ""}" /></label>
-          <p class="plan-withdraw-hint">※取崩年月が未設定の場合は、積立支出を継続します。</p>
           <label>引き落とし日<input class="plan-withdrawal-day" type="number" min="1" max="31" step="1" value="${normalizedPlan.withdrawalDay ?? 1}" /></label>
+          <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.withdrawMonth || ""}" /></label>
+          <p class="plan-withdraw-hint">※一括解約年月が未設定の場合は、積立支出を継続します。</p>
+          <fieldset class="plan-withdrawal-settings" aria-label="取崩設定">
+            <legend>取崩設定</legend>
+            <div class="plan-withdrawal-settings-grid">
+              <label>取崩開始年齢<input class="plan-withdrawal-start-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalStartAge ?? ""}" /></label>
+              <label>取崩終了年齢<input class="plan-withdrawal-end-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalEndAge ?? ""}" /></label>
+              <label>
+                取崩方法
+                <select class="plan-withdrawal-mode">
+                  <option value="" ${!normalizedPlan.withdrawalMode ? "selected" : ""}>未設定</option>
+                  <option value="amount" ${normalizedPlan.withdrawalMode === "amount" ? "selected" : ""}>金額</option>
+                  <option value="rate" ${normalizedPlan.withdrawalMode === "rate" ? "selected" : ""}>率</option>
+                </select>
+              </label>
+              <label class="plan-withdrawal-amount-wrap">年間取崩額<input class="plan-withdrawal-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.withdrawalAmount) ? numberWithComma.format(normalizedPlan.withdrawalAmount) : ""}" /></label>
+              <label class="plan-withdrawal-rate-wrap">年間取崩率(%)<input class="plan-withdrawal-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.withdrawalRate) ? normalizedPlan.withdrawalRate : ""}" /></label>
+            </div>
+          </fieldset>
         </div>
         <div class="change-wrap">
           <div class="change-header">
@@ -5439,9 +5488,14 @@ function createPlanBlock(plan = {}) {
   const expectedReturnField = wrap.querySelector(".plan-expected-return");
   const suggestExpectedReturnButton = wrap.querySelector(".plan-expected-return-suggest");
   const withdrawalDayField = wrap.querySelector(".plan-withdrawal-day");
+  const withdrawalModeField = wrap.querySelector(".plan-withdrawal-mode");
+  const withdrawalAmountWrap = wrap.querySelector(".plan-withdrawal-amount-wrap");
+  const withdrawalRateWrap = wrap.querySelector(".plan-withdrawal-rate-wrap");
+  const withdrawalAmountField = wrap.querySelector(".plan-withdrawal-amount");
   const title = wrap.querySelector(".plan-card-title");
   const tag = wrap.querySelector(".plan-card-tag");
   setupFormattedAmountInput(currentValueField);
+  setupFormattedAmountInput(withdrawalAmountField);
 
   const refreshAutoYield = () => {
     const draftPlan = {
@@ -5489,10 +5543,21 @@ function createPlanBlock(plan = {}) {
   planNameField.addEventListener("input", refreshPlanVisual);
   currentValueField?.addEventListener("input", refreshAutoYield);
   withdrawalDayField?.addEventListener("input", refreshAutoYield);
+  const syncWithdrawalModeFields = () => {
+    const mode = withdrawalModeField?.value || "";
+    if (withdrawalAmountWrap) {
+      withdrawalAmountWrap.hidden = mode !== "amount";
+    }
+    if (withdrawalRateWrap) {
+      withdrawalRateWrap.hidden = mode !== "rate";
+    }
+  };
+  withdrawalModeField?.addEventListener("change", syncWithdrawalModeFields);
   wrap.dataset.planExpanded = "true";
   wrap.classList.add("is-expanded");
   refreshPlanVisual();
   refreshAutoYield();
+  syncWithdrawalModeFields();
 
   wrap.querySelector(".add-lump").addEventListener("click", () => {
     lumpList.appendChild(createHistoryRow({ type: "lump", onChange: refreshAutoYield }));
@@ -5589,7 +5654,7 @@ function renderRegisteredPlans(settings) {
         <li><span>現在評価額</span><strong>${Number.isFinite(normalizedPlan.currentValue) ? yen.format(normalizedPlan.currentValue) : "--"}</strong></li>
         <li><span>現在利回り（自動）</span><strong>${formatAutoYieldPercent(currentAutoYield)}</strong></li>
         <li><span>想定利回り</span><strong>${formatPlanAnnualReturn(normalizedPlan.expectedReturn)}</strong></li>
-        <li><span>取崩年月</span><strong>${normalizedPlan.withdrawMonth ? formatWithdrawMonthLabelWithAge(normalizedPlan.withdrawMonth, settings?.birthDate) : "未設定"}</strong></li>
+        <li><span>一括解約年月</span><strong>${normalizedPlan.withdrawMonth ? formatWithdrawMonthLabelWithAge(normalizedPlan.withdrawMonth, settings?.birthDate) : "未設定"}</strong></li>
         <li><span>積立額（月額）</span><strong>${monthlyContribution > 0 ? yen.format(monthlyContribution) : "未設定"}</strong></li>
         <li><span>一括入金（累計）</span><strong>${lumpTotal > 0 ? yen.format(lumpTotal) : "なし"}</strong></li>
       </ul>
@@ -5653,6 +5718,11 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
         expectedReturn: parseRateInput(block.querySelector(".plan-expected-return").value),
         withdrawMonth: block.querySelector(".plan-withdraw-month").value,
         withdrawalDay: Number(block.querySelector(".plan-withdrawal-day").value),
+        withdrawalStartAge: parseOptionalAgeInput(block.querySelector(".plan-withdrawal-start-age")?.value),
+        withdrawalEndAge: parseOptionalAgeInput(block.querySelector(".plan-withdrawal-end-age")?.value),
+        withdrawalMode: block.querySelector(".plan-withdrawal-mode")?.value || "",
+        withdrawalAmount: parseOptionalAmountInput(block.querySelector(".plan-withdrawal-amount")?.value),
+        withdrawalRate: parseOptionalRateInput(block.querySelector(".plan-withdrawal-rate")?.value),
         lumpSums,
         monthlyContributions,
       };
