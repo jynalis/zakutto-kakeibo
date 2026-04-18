@@ -5445,18 +5445,24 @@ function createPlanBlock(plan = {}) {
           <fieldset class="plan-withdrawal-settings" aria-label="取崩設定">
             <legend>取崩設定</legend>
             <div class="plan-withdrawal-settings-grid">
-              <label>取崩開始年齢<input class="plan-withdrawal-start-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalStartAge ?? ""}" /></label>
-              <label>取崩終了年齢<input class="plan-withdrawal-end-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalEndAge ?? ""}" /></label>
-              <label>
-                取崩方法
-                <select class="plan-withdrawal-mode">
-                  <option value="" ${!normalizedPlan.withdrawalMode ? "selected" : ""}>未設定</option>
-                  <option value="amount" ${normalizedPlan.withdrawalMode === "amount" ? "selected" : ""}>金額</option>
-                  <option value="rate" ${normalizedPlan.withdrawalMode === "rate" ? "selected" : ""}>率</option>
-                </select>
-              </label>
-              <label class="plan-withdrawal-amount-wrap">年間取崩額<input class="plan-withdrawal-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.withdrawalAmount) ? numberWithComma.format(normalizedPlan.withdrawalAmount) : ""}" /></label>
-              <label class="plan-withdrawal-rate-wrap">年間取崩率(%)<input class="plan-withdrawal-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.withdrawalRate) ? normalizedPlan.withdrawalRate : ""}" /></label>
+              <div class="withdraw-row-ages">
+                <label>取崩開始年齢<input class="plan-withdrawal-start-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalStartAge ?? ""}" /></label>
+                <label>取崩終了年齢<input class="plan-withdrawal-end-age" type="number" min="0" step="1" value="${normalizedPlan.withdrawalEndAge ?? ""}" /></label>
+              </div>
+              <div class="withdraw-row-mode">
+                <label>
+                  取崩方法
+                  <select class="plan-withdrawal-mode">
+                    <option value="" ${!normalizedPlan.withdrawalMode ? "selected" : ""}>未設定</option>
+                    <option value="amount" ${normalizedPlan.withdrawalMode === "amount" ? "selected" : ""}>金額</option>
+                    <option value="rate" ${normalizedPlan.withdrawalMode === "rate" ? "selected" : ""}>率</option>
+                  </select>
+                </label>
+              </div>
+              <div class="withdraw-row-value">
+                <label class="plan-withdrawal-amount-wrap">年間取崩額<input class="plan-withdrawal-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.withdrawalAmount) ? numberWithComma.format(normalizedPlan.withdrawalAmount) : ""}" /></label>
+                <label class="plan-withdrawal-rate-wrap">年間取崩率(%)<input class="plan-withdrawal-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.withdrawalRate) ? normalizedPlan.withdrawalRate : ""}" /></label>
+              </div>
             </div>
           </fieldset>
         </div>

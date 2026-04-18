@@ -1578,8 +1578,21 @@ button.plan-card-trigger {
 }
 
 .plan-withdrawal-settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan-withdrawal-settings-grid .withdraw-row-ages {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.plan-withdrawal-settings-grid .withdraw-row-mode,
+.plan-withdrawal-settings-grid .withdraw-row-value {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
@@ -3219,10 +3232,6 @@ body.is-keyboard-open .floating-top-button {
   }
 
   .plan-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .plan-withdrawal-settings-grid {
     grid-template-columns: 1fr;
   }
 
