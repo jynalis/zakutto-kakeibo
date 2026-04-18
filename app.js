@@ -6247,8 +6247,14 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
         monthlyContributions,
       };
     })
-    .filter((plan) => plan.lumpSums.length > 0 || plan.monthlyContributions.length > 0)
     .map((plan) => normalizePlan(plan));
+}
+
+function hasPlanContributionEntries(plan) {
+  if (!plan || typeof plan !== "object") return false;
+  const hasLumpSums = Array.isArray(plan.lumpSums) && plan.lumpSums.length > 0;
+  const hasMonthlyContributions = Array.isArray(plan.monthlyContributions) && plan.monthlyContributions.length > 0;
+  return hasLumpSums || hasMonthlyContributions;
 }
 
 function renderPlans(settings) {
@@ -6322,9 +6328,10 @@ function saveAssetFormationSettings(editorList = planEditorList || assetPlanEdit
   const isAssetEditor = Boolean(assetPlanEditorList && editorList === assetPlanEditorList);
   const existingSettings = loadSettings();
   const existingPlans = Array.isArray(existingSettings?.plans) ? existingSettings.plans : [];
-  const editedPlans = collectPlansFromForm(editorList);
-  const editedPlanIds = new Set(editedPlans.map((plan) => plan.id));
+  const collectedPlans = collectPlansFromForm(editorList);
+  const editedPlanIds = new Set(collectedPlans.map((plan) => plan.id).filter(Boolean));
   const untouchedPlans = existingPlans.filter((plan) => !editedPlanIds.has(plan.id));
+  const editedPlans = collectedPlans.filter((plan) => hasPlanContributionEntries(plan));
   const settings = {
     ...existingSettings,
     birthDate: existingSettings?.birthDate || "",
