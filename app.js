@@ -994,6 +994,10 @@ function normalizePlan(rawPlan) {
   const plan = rawPlan ?? {};
   const normalizedCurrentValue = Number(plan.currentValue);
   const currentValue = Number.isFinite(normalizedCurrentValue) ? normalizedCurrentValue : null;
+  const normalizedInitialPrincipalAtStartMonth = Number(plan.initialPrincipalAtStartMonth);
+  const initialPrincipalAtStartMonth = Number.isFinite(normalizedInitialPrincipalAtStartMonth)
+    ? Math.max(normalizedInitialPrincipalAtStartMonth, 0)
+    : 0;
   const normalizedCurrentAutoYield = Number(plan.currentAutoYield);
   const installmentStartDate = parseMonth(plan.installmentStartDate)
     ? plan.installmentStartDate
@@ -1058,6 +1062,7 @@ function normalizePlan(rawPlan) {
     name: typeof plan.name === "string" ? plan.name : "",
     expectedReturn: parseRateInput(plan.expectedReturn),
     currentValue,
+    initialPrincipalAtStartMonth,
     currentAutoYield: Number.isFinite(normalizedCurrentAutoYield) ? normalizedCurrentAutoYield : null,
     withdrawalDay: Math.max(Number(plan.withdrawalDay) || 1, 1),
     withdrawalType,
@@ -5871,6 +5876,11 @@ function createPlanBlock(plan = {}) {
           <div class="plan-primary-fields">
             <label>種類<select class="plan-type">${typeOptions}</select></label>
             <label>識別名<input class="plan-name" type="text" maxlength="30" placeholder="例: つみたて枠" value="${normalizedPlan.name || ""}" /></label>
+            <label>
+              設定年月時点元本
+              <input class="plan-initial-principal-at-start-month js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.initialPrincipalAtStartMonth) ? numberWithComma.format(normalizedPlan.initialPrincipalAtStartMonth) : "0"}" />
+              <small>※設定年月時点ですでに保有している元本。以後の積立・一括投資とは別に扱います。</small>
+            </label>
             <label>現在評価額<input class="plan-current-value js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.currentValue) ? numberWithComma.format(normalizedPlan.currentValue) : ""}" /></label>
             <label class="plan-auto-yield-field">
               現在利回り（自動）
@@ -5965,6 +5975,7 @@ function createPlanBlock(plan = {}) {
   const monthlyList = wrap.querySelector(".monthly-list");
   const planTypeField = wrap.querySelector(".plan-type");
   const planNameField = wrap.querySelector(".plan-name");
+  const initialPrincipalAtStartMonthField = wrap.querySelector(".plan-initial-principal-at-start-month");
   const currentValueField = wrap.querySelector(".plan-current-value");
   const autoYieldField = wrap.querySelector(".plan-current-auto-yield");
   const autoYieldNote = wrap.querySelector(".plan-auto-yield-note");
@@ -5992,6 +6003,7 @@ function createPlanBlock(plan = {}) {
   const installmentRateField = wrap.querySelector(".plan-installment-rate");
   const title = wrap.querySelector(".plan-card-title");
   const tag = wrap.querySelector(".plan-card-tag");
+  setupFormattedAmountInput(initialPrincipalAtStartMonthField, { allowZero: true });
   setupFormattedAmountInput(currentValueField);
   setupFormattedAmountInput(lumpSumAmountField);
   setupFormattedAmountInput(installmentAmountField);
@@ -6210,6 +6222,7 @@ function renderRegisteredPlans(settings) {
       <ul class="plan-registered-meta-list">
         <li><span>種類</span><strong>${normalizedPlan.type}</strong></li>
         <li><span>識別名</span><strong>${normalizedPlan.name || "未設定"}</strong></li>
+        <li><span>設定年月時点元本</span><strong>${yen.format(normalizedPlan.initialPrincipalAtStartMonth || 0)}</strong></li>
         <li><span>現在評価額</span><strong>${Number.isFinite(normalizedPlan.currentValue) ? yen.format(normalizedPlan.currentValue) : "--"}</strong></li>
         <li><span>現在利回り（自動）</span><strong>${formatAutoYieldPercent(currentAutoYield)}</strong></li>
         <li><span>想定利回り</span><strong>${formatPlanAnnualReturn(normalizedPlan.expectedReturn)}</strong></li>
@@ -6283,6 +6296,7 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
         id: block.querySelector(".plan-id").value,
         type: block.querySelector(".plan-type").value,
         name: block.querySelector(".plan-name").value.trim(),
+        initialPrincipalAtStartMonth: parseAmountInput(block.querySelector(".plan-initial-principal-at-start-month")?.value) || 0,
         currentValue: parseAmountInput(block.querySelector(".plan-current-value").value) || null,
         currentAutoYield: calculateCurrentAutoYield({
           withdrawalDay: Number(block.querySelector(".plan-withdrawal-day").value),
@@ -6326,9 +6340,10 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
 
 function hasPlanContributionEntries(plan) {
   if (!plan || typeof plan !== "object") return false;
+  const hasInitialPrincipalAtStartMonth = Number(plan.initialPrincipalAtStartMonth) > 0;
   const hasLumpSums = Array.isArray(plan.lumpSums) && plan.lumpSums.length > 0;
   const hasMonthlyContributions = Array.isArray(plan.monthlyContributions) && plan.monthlyContributions.length > 0;
-  return hasLumpSums || hasMonthlyContributions;
+  return hasInitialPrincipalAtStartMonth || hasLumpSums || hasMonthlyContributions;
 }
 
 function renderPlans(settings) {
