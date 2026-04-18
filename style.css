@@ -1480,18 +1480,19 @@ button.plan-card-trigger {
 
 .plan-grid {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .plan-primary-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
 }
 
 .plan-auto-yield-field {
   display: grid;
-  gap: 4px;
+  gap: 6px;
+  align-content: start;
 }
 
 .plan-current-auto-yield {
@@ -1502,21 +1503,32 @@ button.plan-card-trigger {
 .plan-auto-yield-field small {
   color: #5d6f85;
   font-size: 0.75rem;
+  line-height: 1.45;
+  margin-top: 2px;
 }
 
 .plan-expected-return-suggest-row {
-  margin-top: 0;
   display: flex;
   justify-content: flex-start;
 }
 
 .plan-expected-return-suggest-row .plan-expected-return-suggest {
   margin: 0;
+  width: 100%;
+  max-width: 240px;
+  padding: 10px 12px;
+  font-size: 0.87rem;
 }
 
 .plan-withdrawal-stack {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+}
+
+.plan-withdrawal-date-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .plan-registered-card {
@@ -1574,18 +1586,18 @@ button.plan-card-trigger {
 }
 
 .plan-withdraw-hint {
-  margin: -2px 0 0;
+  margin: 0;
   font-size: 0.8rem;
   color: #5d6f85;
 }
 
 .plan-withdrawal-settings {
   margin: 0;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid #d2ddea;
   border-radius: 10px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .plan-withdrawal-settings legend {
@@ -1596,8 +1608,7 @@ button.plan-card-trigger {
 }
 
 .plan-withdrawal-settings-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 10px;
 }
 
@@ -1608,7 +1619,6 @@ button.plan-card-trigger {
 
 .plan-withdrawal-age-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
@@ -3262,7 +3272,7 @@ body.is-keyboard-open .floating-top-button {
   }
 
   .plan-grid {
-    gap: 8px;
+    gap: 10px;
   }
 
   .plan-primary-fields,
