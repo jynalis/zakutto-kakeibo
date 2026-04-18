@@ -4204,6 +4204,7 @@ function buildAssetWithdrawalTransfersByMonth(settings) {
 function calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEndMonth) {
   if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return 0;
   if (compareMonth(yearStartMonth, yearEndMonth) > 0) return 0;
+  if (typeof plan?.useInstallment === "boolean" && !plan.useInstallment) return 0;
   const startDate = parseMonth(plan?.installmentStartDate)
     ? plan.installmentStartDate
     : (parseMonth(plan?.withdrawalStartDate) ? plan.withdrawalStartDate : "");
@@ -4220,25 +4221,125 @@ function calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEnd
   return activeMonths;
 }
 
-function resolvePlanAnnualWithdrawalAmount(plan, yearStartBalance, activeMonthsInYear = 12) {
-  const safeYearStartBalance = Math.max(Number(yearStartBalance) || 0, 0);
-  if (safeYearStartBalance <= 0) return 0;
+function resolvePlanAnnualInstallmentWithdrawalAmount(plan, availableBalanceBeforeWithdrawal, activeMonthsInYear = 12) {
+  const safeAvailableBalance = Math.max(Number(availableBalanceBeforeWithdrawal) || 0, 0);
+  if (safeAvailableBalance <= 0) return 0;
+  if (typeof plan?.useInstallment === "boolean" && !plan.useInstallment) return 0;
   const safeActiveMonths = Math.max(Math.min(Number(activeMonthsInYear) || 0, 12), 0);
   if (safeActiveMonths <= 0) return 0;
   const prorationFactor = safeActiveMonths / 12;
 
   if (plan?.withdrawalMode === "amount") {
     const annualAmount = Math.max(Number(plan?.withdrawalAmount) || 0, 0);
-    return Math.min(annualAmount * prorationFactor, safeYearStartBalance);
+    return Math.min(annualAmount * prorationFactor, safeAvailableBalance);
   }
 
   if (plan?.withdrawalMode === "rate") {
     const annualRate = Math.max(parseRateInput(plan?.withdrawalRate), 0) / 100;
-    const calculated = safeYearStartBalance * annualRate * prorationFactor;
-    return Math.min(calculated, safeYearStartBalance);
+    const calculated = safeAvailableBalance * annualRate * prorationFactor;
+    return Math.min(calculated, safeAvailableBalance);
   }
 
   return 0;
+}
+
+function resolvePlanAnnualLumpSumWithdrawalAmount(plan, yearStartMonth, yearEndMonth, availableBalanceBeforeWithdrawal) {
+  if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return 0;
+  if (compareMonth(yearStartMonth, yearEndMonth) > 0) return 0;
+  if (typeof plan?.useLumpSum === "boolean" && !plan.useLumpSum) return 0;
+
+  const withdrawTargetMonth = resolveWithdrawExecutionMonth(plan);
+  if (!withdrawTargetMonth) return 0;
+  if (compareMonth(withdrawTargetMonth, yearStartMonth) < 0 || compareMonth(withdrawTargetMonth, yearEndMonth) > 0) {
+    return 0;
+  }
+
+  const safeAvailableBalance = Math.max(Number(availableBalanceBeforeWithdrawal) || 0, 0);
+  if (safeAvailableBalance <= 0) return 0;
+
+  const lumpSumMode = plan?.lumpSumMode === "rate" || plan?.lumpSumMode === "amount"
+    ? plan.lumpSumMode
+    : (plan?.lumpSumAmountMode === "full" ? "rate" : "amount");
+  if (lumpSumMode === "rate") {
+    const lumpSumRate = Math.max(parseRateInput(plan?.lumpSumRate), 0) / 100;
+    return Math.min(safeAvailableBalance * lumpSumRate, safeAvailableBalance);
+  }
+
+  const lumpSumAmount = Math.max(Number(plan?.lumpSumAmount) || 0, 0);
+  return Math.min(lumpSumAmount, safeAvailableBalance);
+}
+
+function calculatePlanAnnualBalanceSnapshot(plan, { year, yearStartMonth, yearEndMonth, yearStartBalance }) {
+  const normalizedYearStartBalance = Math.max(Number(yearStartBalance) || 0, 0);
+  const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
+  const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
+  const availableBalanceBeforeWithdrawal = Math.max(normalizedYearStartBalance + annualContributions + annualLumpSums, 0);
+
+  const activeMonthsInYear = calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEndMonth);
+  const annualInstallmentWithdrawal = activeMonthsInYear > 0
+    ? resolvePlanAnnualInstallmentWithdrawalAmount(plan, availableBalanceBeforeWithdrawal, activeMonthsInYear)
+    : 0;
+  const annualLumpSumWithdrawal = resolvePlanAnnualLumpSumWithdrawalAmount(
+    plan,
+    yearStartMonth,
+    yearEndMonth,
+    availableBalanceBeforeWithdrawal
+  );
+  const requestedWithdrawal = annualInstallmentWithdrawal + annualLumpSumWithdrawal;
+  const annualWithdrawal = Math.min(requestedWithdrawal, availableBalanceBeforeWithdrawal);
+
+  const balanceAfterWithdrawal = Math.max(availableBalanceBeforeWithdrawal - annualWithdrawal, 0);
+  const annualReturnRate = parseRateInput(plan?.expectedReturn) / 100;
+  const annualReturn = balanceAfterWithdrawal * annualReturnRate;
+  const yearEndBalance = Math.max(balanceAfterWithdrawal + annualReturn, 0);
+
+  return {
+    annualWithdrawal,
+    yearEndBalance,
+  };
+}
+
+function buildAnnualAssetFormationBalancesByYear({
+  settings,
+  startYear,
+  endYear,
+  startMonth,
+  referenceMonth,
+  targetAge = CASHFLOW_TABLE_TARGET_AGE,
+}) {
+  if (!Array.isArray(settings?.plans) || settings.plans.length === 0) return {};
+  if (!parseBirthDate(settings?.birthDate)) return {};
+  if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
+
+  const balancesByYear = {};
+  const planBalances = new Map(
+    settings.plans.map((plan) => [plan.id, Math.max(Number(plan?.currentValue) || 0, 0)])
+  );
+
+  for (let year = startYear; year <= endYear; year += 1) {
+    const age = resolveAgeAtYear(settings.birthDate, year);
+    if (!Number.isFinite(age) || age > targetAge) continue;
+    const yearStartMonth = year === startYear ? startMonth : formatMonth(year, 0);
+    const yearEndMonth = year === endYear ? referenceMonth : formatMonth(year, 11);
+    if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth) || compareMonth(yearStartMonth, yearEndMonth) > 0) continue;
+
+    let totalBalance = 0;
+    settings.plans.forEach((plan) => {
+      const yearStartBalance = Math.max(Number(planBalances.get(plan.id)) || 0, 0);
+      const snapshot = calculatePlanAnnualBalanceSnapshot(plan, {
+        year,
+        yearStartMonth,
+        yearEndMonth,
+        yearStartBalance,
+      });
+      planBalances.set(plan.id, snapshot.yearEndBalance);
+      totalBalance += snapshot.yearEndBalance;
+    });
+
+    balancesByYear[year] = Math.round(totalBalance);
+  }
+
+  return balancesByYear;
 }
 
 function calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth) {
@@ -4289,18 +4390,15 @@ function buildAnnualAssetWithdrawalTransfersByYear({
     settings.plans.forEach((plan) => {
       const planKey = plan.id;
       const yearStartBalance = Math.max(Number(planBalances.get(planKey)) || 0, 0);
-      const annualReturnRate = parseRateInput(plan?.expectedReturn) / 100;
-      const annualReturn = yearStartBalance * annualReturnRate;
-      const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
-      const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
-      const activeMonthsInYear = calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEndMonth);
-      const annualWithdrawal = activeMonthsInYear > 0
-        ? resolvePlanAnnualWithdrawalAmount(plan, yearStartBalance, activeMonthsInYear)
-        : 0;
+      const snapshot = calculatePlanAnnualBalanceSnapshot(plan, {
+        year,
+        yearStartMonth,
+        yearEndMonth,
+        yearStartBalance,
+      });
 
-      totalWithdrawalForYear += annualWithdrawal;
-      const yearEndBalance = Math.max(yearStartBalance + annualReturn + annualContributions + annualLumpSums - annualWithdrawal, 0);
-      planBalances.set(planKey, yearEndBalance);
+      totalWithdrawalForYear += snapshot.annualWithdrawal;
+      planBalances.set(planKey, snapshot.yearEndBalance);
     });
 
     transfers[year] = Math.round(totalWithdrawalForYear);
@@ -4504,8 +4602,15 @@ function buildCashflowRowsUntilAge({
   const hasExpenseScenarios = sortedExpenseScenarios.length > 0;
   const lifeEventByMonth = buildLifeEventTotalsByMonth(lifeEvents, settings.birthDate);
   const plannedExtraByMonth = buildPlannedExtraTotalsByMonth(transactions, averageStartMonth);
-  const assetWithdrawalTransfersByMonth = buildAssetWithdrawalTransfersByMonth(settings);
   const annualAssetWithdrawalTransfersByYear = buildAnnualAssetWithdrawalTransfersByYear({
+    settings,
+    startYear,
+    endYear,
+    startMonth: cashflowStartMonth,
+    referenceMonth,
+    targetAge,
+  });
+  const assetFormationBalancesByYear = buildAnnualAssetFormationBalancesByYear({
     settings,
     startYear,
     endYear,
@@ -4590,14 +4695,8 @@ function buildCashflowRowsUntilAge({
     );
     const annualExtraIncome = annualLifeEventIncome + annualPlannedExtraIncome;
     const annualExtraExpense = annualLifeEventExpense + annualPlannedExtraExpense;
-    const annualAssetWithdrawalTransferByMonth = sumMonthlyAmountsInYear(
-      assetWithdrawalTransfersByMonth,
-      year,
-      yearStartMonth,
-      yearEndMonth
-    );
     const annualAssetWithdrawalTransferBySetting = annualAssetWithdrawalTransfersByYear[year] || 0;
-    const annualAssetWithdrawalTransfer = annualAssetWithdrawalTransferByMonth + annualAssetWithdrawalTransferBySetting;
+    const annualAssetWithdrawalTransfer = annualAssetWithdrawalTransferBySetting;
     const annualTotalIncome = annualIncome
       + annualAssetWithdrawalTransfer
       + annualExtraIncome;
@@ -4608,8 +4707,7 @@ function buildCashflowRowsUntilAge({
       + annualExtraExpense;
     const annualBalance = annualTotalIncome - annualTotalExpense;
     endingBalance += annualBalance;
-    const rowTargetMonth = isReferenceYear ? referenceMonth : formatMonth(year, 11);
-    const assetFormationBalance = calculateFinancialAssetTotalAtMonth(settings, rowTargetMonth);
+    const assetFormationBalance = assetFormationBalancesByYear[year] || 0;
     const financialAssetTotal = endingBalance + assetFormationBalance;
 
     rows.push({
