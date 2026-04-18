@@ -71,8 +71,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
           currentValue: 1000000,
           monthlyContributions: [],
           lumpSums: [],
-          withdrawalStartAge: 35,
-          withdrawalEndAge: 36,
+          withdrawalStartDate: '2025-01',
           withdrawalMode: 'amount',
           withdrawalAmount: 120000,
         },
@@ -82,8 +81,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
           currentValue: 500000,
           monthlyContributions: [],
           lumpSums: [],
-          withdrawalStartAge: 35,
-          withdrawalEndAge: 36,
+          withdrawalStartDate: '2025-01',
           withdrawalMode: '',
           withdrawalAmount: 999999,
         },
@@ -99,7 +97,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2024], 0);
   assert.strictEqual(transfers[2025], 120000);
   assert.strictEqual(transfers[2026], 120000);
-  assert.strictEqual(transfers[2027], 0);
+  assert.strictEqual(transfers[2027], 120000);
 })();
 
 (function testRateModeUsesYearStartBalanceAndCap() {
@@ -113,8 +111,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
           currentValue: 1000000,
           monthlyContributions: [],
           lumpSums: [],
-          withdrawalStartAge: 34,
-          withdrawalEndAge: null,
+          withdrawalStartDate: '2024-01',
           withdrawalMode: 'rate',
           withdrawalRate: 10,
         },
@@ -124,8 +121,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
           currentValue: 100000,
           monthlyContributions: [],
           lumpSums: [],
-          withdrawalStartAge: 34,
-          withdrawalEndAge: null,
+          withdrawalStartDate: '2024-01',
           withdrawalMode: 'amount',
           withdrawalAmount: 300000,
         },
@@ -143,7 +139,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2026], 100000);
 })();
 
-(function testEndAgeZeroContinuesUntil100() {
+(function testStartDateContinuesUntilTargetAge() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
     settings: {
       birthDate: '1990-01-01',
@@ -154,8 +150,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
           currentValue: 500000,
           monthlyContributions: [],
           lumpSums: [],
-          withdrawalStartAge: 35,
-          withdrawalEndAge: 0,
+          withdrawalStartDate: '2025-01',
           withdrawalMode: 'amount',
           withdrawalAmount: 100000,
         },

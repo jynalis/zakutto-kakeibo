@@ -995,8 +995,13 @@ function normalizePlan(rawPlan) {
   const normalizedCurrentValue = Number(plan.currentValue);
   const currentValue = Number.isFinite(normalizedCurrentValue) ? normalizedCurrentValue : null;
   const normalizedCurrentAutoYield = Number(plan.currentAutoYield);
-  const normalizedInstallmentStartAge = Number(plan.installmentStartAge ?? plan.hybridInstallmentStartAge ?? plan.withdrawalStartAge);
-  const normalizedInstallmentEndAge = Number(plan.installmentEndAge ?? plan.withdrawalEndAge);
+  const installmentStartDate = parseMonth(plan.installmentStartDate)
+    ? plan.installmentStartDate
+    : (parseMonth(plan.hybridInstallmentStartDate)
+      ? plan.hybridInstallmentStartDate
+      : (parseMonth(plan.withdrawalStartDate)
+        ? plan.withdrawalStartDate
+        : ""));
   const normalizedInstallmentAmount = Number(plan.installmentAmount ?? plan.hybridInstallmentAmount ?? plan.withdrawalAmount);
   const normalizedInstallmentRate = Number(plan.installmentRate ?? plan.hybridInstallmentRate ?? plan.withdrawalRate);
   const normalizedLumpSumAmount = Number(plan.lumpSumAmount ?? plan.hybridLumpSumAmount);
@@ -1018,14 +1023,12 @@ function normalizePlan(rawPlan) {
     : (plan.lumpSumAmountMode === "partial"
       ? "amount"
       : (Number.isFinite(normalizedLumpSumRate) ? "rate" : "amount")));
-  const installmentStartAge = Number.isFinite(normalizedInstallmentStartAge) ? Math.max(normalizedInstallmentStartAge, 0) : null;
-  const installmentEndAge = Number.isFinite(normalizedInstallmentEndAge) ? Math.max(normalizedInstallmentEndAge, 0) : null;
   const installmentAmount = Number.isFinite(normalizedInstallmentAmount) ? Math.max(normalizedInstallmentAmount, 0) : null;
   const installmentRate = Number.isFinite(normalizedInstallmentRate) ? Math.max(normalizedInstallmentRate, 0) : null;
   const lumpSumAmount = Number.isFinite(normalizedLumpSumAmount) ? Math.max(normalizedLumpSumAmount, 0) : null;
   const lumpSumRate = Number.isFinite(normalizedLumpSumRate) ? Math.max(normalizedLumpSumRate, 0) : null;
   const lumpSumAmountMode = lumpSumMode === "amount" ? "partial" : "full";
-  const hasInstallmentSetting = Boolean(installmentMode || installmentStartAge !== null);
+  const hasInstallmentSetting = Boolean(installmentMode || installmentStartDate);
   const hasLumpSumSetting = Boolean(
     lumpSumDate
     || (lumpSumMode === "amount" && lumpSumAmount !== null && lumpSumAmount > 0)
@@ -1065,8 +1068,7 @@ function normalizePlan(rawPlan) {
     lumpSumAmountMode,
     lumpSumAmount,
     lumpSumRate,
-    installmentStartAge,
-    installmentEndAge,
+    installmentStartDate,
     installmentMode,
     installmentAmount,
     installmentRate,
@@ -1074,13 +1076,12 @@ function normalizePlan(rawPlan) {
     hybridLumpSumMode: lumpSumMode,
     hybridLumpSumAmount: lumpSumAmount,
     hybridLumpSumRate: lumpSumRate,
-    hybridInstallmentStartAge: installmentStartAge,
+    hybridInstallmentStartDate: installmentStartDate,
     hybridInstallmentMode: installmentMode,
     hybridInstallmentAmount: installmentAmount,
     hybridInstallmentRate: installmentRate,
     withdrawMonth: lumpSumDate,
-    withdrawalStartAge: installmentStartAge,
-    withdrawalEndAge: installmentEndAge,
+    withdrawalStartDate: installmentStartDate,
     withdrawalMode: installmentMode,
     withdrawalAmount: installmentAmount,
     withdrawalRate: installmentRate,
@@ -4200,13 +4201,13 @@ function buildAssetWithdrawalTransfersByMonth(settings) {
   }, {});
 }
 
-function isPlanWithdrawalActiveAtAge(plan, age) {
-  if (!Number.isFinite(age)) return false;
-  const startAge = parseOptionalAgeInput(plan?.withdrawalStartAge);
-  if (!Number.isFinite(startAge) || startAge < 0) return false;
-  const endAge = parseOptionalAgeInput(plan?.withdrawalEndAge);
-  const normalizedEndAge = Number.isFinite(endAge) && endAge > 0 ? endAge : CASHFLOW_TABLE_TARGET_AGE;
-  return age >= startAge && age <= normalizedEndAge;
+function isPlanWithdrawalActiveInRange(plan, yearStartMonth, yearEndMonth) {
+  if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return false;
+  const startDate = parseMonth(plan?.withdrawalStartDate)
+    ? plan.withdrawalStartDate
+    : (parseMonth(plan?.installmentStartDate) ? plan.installmentStartDate : "");
+  if (!startDate) return false;
+  return compareMonth(startDate, yearEndMonth) <= 0;
 }
 
 function resolvePlanAnnualWithdrawalAmount(plan, yearStartBalance) {
@@ -4279,7 +4280,7 @@ function buildAnnualAssetWithdrawalTransfersByYear({
       const annualReturn = yearStartBalance * annualReturnRate;
       const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
       const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
-      const annualWithdrawal = isPlanWithdrawalActiveAtAge(plan, age)
+      const annualWithdrawal = isPlanWithdrawalActiveInRange(plan, yearStartMonth, yearEndMonth)
         ? resolvePlanAnnualWithdrawalAmount(plan, yearStartBalance)
         : 0;
 
@@ -5673,7 +5674,7 @@ function createPlanBlock(plan = {}) {
                   <input type="hidden" class="plan-use-installment" value="${normalizedPlan.useInstallment ? "true" : "false"}" />
                 </div>
                 <div class="plan-withdrawal-block-fields plan-withdrawal-installment-fields">
-                  <label>分割開始年齢<input class="plan-withdrawal-start-age" type="number" min="0" step="1" value="${normalizedPlan.installmentStartAge ?? ""}" /></label>
+                  <label>分割開始年月<input class="plan-installment-start-month" type="month" value="${normalizedPlan.installmentStartDate || ""}" /></label>
                   <div class="plan-sub-segment-wrap">
                     <p class="plan-sub-segment-label">分割方式</p>
                     <div class="plan-segment-control plan-installment-mode-control" role="group" aria-label="分割方式">
@@ -6020,7 +6021,8 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
       const lumpSumMode = block.querySelector(".plan-lump-sum-mode")?.value || "amount";
       const lumpSumAmount = parseOptionalAmountInput(block.querySelector(".plan-lump-sum-amount")?.value);
       const lumpSumRate = parseOptionalRateInput(block.querySelector(".plan-lump-sum-rate")?.value);
-      const installmentStartAge = parseOptionalAgeInput(block.querySelector(".plan-withdrawal-start-age")?.value);
+      const installmentStartDateRaw = block.querySelector(".plan-installment-start-month")?.value || "";
+      const installmentStartDate = parseMonth(installmentStartDateRaw) ? installmentStartDateRaw : "";
       const installmentMode = block.querySelector(".plan-installment-mode")?.value || "amount";
       const installmentAmount = parseOptionalAmountInput(block.querySelector(".plan-installment-amount")?.value);
       const installmentRate = parseOptionalRateInput(block.querySelector(".plan-installment-rate")?.value);
@@ -6045,8 +6047,7 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
         lumpSumAmountMode: lumpSumMode === "amount" ? "partial" : "full",
         lumpSumAmount: useLumpSum && lumpSumMode === "amount" ? lumpSumAmount : null,
         lumpSumRate: useLumpSum && lumpSumMode === "rate" ? lumpSumRate : null,
-        installmentStartAge: useInstallment ? installmentStartAge : null,
-        installmentEndAge: null,
+        installmentStartDate: useInstallment ? installmentStartDate : "",
         installmentMode: useInstallment ? installmentMode : "",
         installmentAmount: useInstallment && installmentMode === "amount" ? installmentAmount : null,
         installmentRate: useInstallment && installmentMode === "rate" ? installmentRate : null,
@@ -6054,14 +6055,13 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
         hybridLumpSumMode: useLumpSum ? lumpSumMode : "amount",
         hybridLumpSumAmount: useLumpSum && lumpSumMode === "amount" ? lumpSumAmount : null,
         hybridLumpSumRate: useLumpSum && lumpSumMode === "rate" ? lumpSumRate : null,
-        hybridInstallmentStartAge: useInstallment ? installmentStartAge : null,
+        hybridInstallmentStartDate: useInstallment ? installmentStartDate : "",
         hybridInstallmentMode: useInstallment ? installmentMode : "amount",
         hybridInstallmentAmount: useInstallment && installmentMode === "amount" ? installmentAmount : null,
         hybridInstallmentRate: useInstallment && installmentMode === "rate" ? installmentRate : null,
         withdrawMonth: useLumpSum ? lumpSumDate : "",
         withdrawalDay: Number(block.querySelector(".plan-withdrawal-day").value),
-        withdrawalStartAge: useInstallment ? installmentStartAge : null,
-        withdrawalEndAge: null,
+        withdrawalStartDate: useInstallment ? installmentStartDate : "",
         withdrawalMode: useInstallment ? installmentMode : "",
         withdrawalAmount: useInstallment && installmentMode === "amount" ? installmentAmount : null,
         withdrawalRate: useInstallment && installmentMode === "rate" ? installmentRate : null,
