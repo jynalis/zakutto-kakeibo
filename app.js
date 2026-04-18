@@ -4356,7 +4356,7 @@ function buildPlanAnnualBalanceRows(plan, { startYear, endYear, startMonth, refe
   return rows;
 }
 
-function buildAnnualAssetFormationBalancesByYear({
+function buildCashflowAssetFormationBalancesByYear({
   settings,
   startYear,
   endYear,
@@ -4370,7 +4370,7 @@ function buildAnnualAssetFormationBalancesByYear({
   if (!parseMonth(startMonth) || !parseMonth(referenceMonth)) return {};
   if (compareMonth(startMonth, referenceMonth) > 0) return {};
 
-  const contractProjections = settings.plans.map((plan) => calculateContractProjection(normalizePlan(plan), {
+  const contractProjections = settings.plans.map((plan) => calculateCashflowContractProjection(normalizePlan(plan), {
     startYear,
     endYear,
     startMonth,
@@ -4385,7 +4385,11 @@ function buildAnnualAssetFormationBalancesByYear({
   });
 }
 
-function calculateContractProjection(contract, { startYear, endYear, startMonth, referenceMonth }) {
+function buildAnnualAssetFormationBalancesByYear(params) {
+  return buildCashflowAssetFormationBalancesByYear(params);
+}
+
+function calculateCashflowContractProjection(contract, { startYear, endYear, startMonth, referenceMonth }) {
   if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
   if (!parseMonth(startMonth) || !parseMonth(referenceMonth)) return {};
   if (compareMonth(startMonth, referenceMonth) > 0) return {};
@@ -4395,7 +4399,7 @@ function calculateContractProjection(contract, { startYear, endYear, startMonth,
 
   const annualReturnRate = Math.max(parseRateInput(contract?.expectedReturn), 0) / 100;
   const monthlyReturnRate = Math.pow(1 + annualReturnRate, 1 / 12) - 1;
-  let balance = Math.max(Number(contract?.currentValue) || 0, 0);
+  let balance = 0;
   const projectionByYear = {};
 
   months.forEach((month) => {
@@ -4418,6 +4422,10 @@ function calculateContractProjection(contract, { startYear, endYear, startMonth,
   });
 
   return projectionByYear;
+}
+
+function calculateContractProjection(contract, options) {
+  return calculateCashflowContractProjection(contract, options);
 }
 
 function aggregateAssetFormationByYear(contractProjections, { birthDate, startYear, endYear, targetAge }) {
@@ -4724,7 +4732,7 @@ function buildCashflowRowsUntilAge({
     referenceMonth,
     targetAge,
   });
-  const assetFormationBalancesByYear = buildAnnualAssetFormationBalancesByYear({
+  const assetFormationBalancesByYear = buildCashflowAssetFormationBalancesByYear({
     settings,
     startYear,
     endYear,
