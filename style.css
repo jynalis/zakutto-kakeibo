@@ -1596,6 +1596,12 @@ button.plan-card-trigger {
 }
 
 .plan-withdrawal-settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan-withdrawal-settings-grid .withdraw-row-ages {
   display: grid;
   gap: 8px;
 }
@@ -1603,6 +1609,14 @@ button.plan-card-trigger {
 .plan-withdrawal-age-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.plan-withdrawal-settings-grid .withdraw-row-mode,
+.plan-withdrawal-settings-grid .withdraw-row-value {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
