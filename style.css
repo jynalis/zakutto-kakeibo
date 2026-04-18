@@ -1499,6 +1499,16 @@ button.plan-card-trigger {
   font-size: 0.75rem;
 }
 
+.plan-expected-return-suggest-row {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  display: flex;
+}
+
+.plan-expected-return-suggest-row .plan-expected-return-suggest {
+  margin: 0;
+}
+
 .plan-registered-card {
   border: 1px solid #bdd5e5;
   border-radius: 12px;
