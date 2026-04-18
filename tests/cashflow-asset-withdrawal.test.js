@@ -57,8 +57,10 @@ vm.runInContext(source, sandbox);
 
 const buildAnnualAssetWithdrawalTransfersByYear = sandbox.buildAnnualAssetWithdrawalTransfersByYear;
 const calculateSuggestedWithdrawMonth = sandbox.calculateSuggestedWithdrawMonth;
+const projectPlanAssetDetails = sandbox.projectPlanAssetDetails;
 assert.strictEqual(typeof buildAnnualAssetWithdrawalTransfersByYear, 'function');
 assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
+assert.strictEqual(typeof projectPlanAssetDetails, 'function');
 
 (function testAmountAndUnsetModes() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
@@ -216,7 +218,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2026], 0);
 })();
 
-(function testLumpSumRateModeIncludesCarryInBalanceBeforeStartMonth() {
+(function testLumpSumRateModeUsesCurrentValueAsBaselineWithoutCarryInRebuild() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
     settings: {
       birthDate: '1990-01-01',
@@ -224,7 +226,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
         {
           id: 'lump-rate-carry-in',
           expectedReturn: 0,
-          currentValue: 0,
+          currentValue: 400000,
           monthlyContributions: [
             { startMonth: '2022-01', amount: 50000 },
             { startMonth: '2023-01', amount: 0 },
@@ -247,7 +249,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   });
 
   assert.strictEqual(transfers[2024], 0);
-  assert.strictEqual(transfers[2025], 900000);
+  assert.strictEqual(transfers[2025], 400000);
 })();
 
 (function testUnsetInstallmentStartDateDoesNotApplyWithdrawals() {
@@ -381,7 +383,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2028], 100000);
 })();
 
-(function testInstallmentRateModeIncludesCarryInBalanceBeforeStartMonth() {
+(function testInstallmentRateModeUsesCurrentValueAsBaselineWithoutCarryInRebuild() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
     settings: {
       birthDate: '1990-01-01',
@@ -389,7 +391,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
         {
           id: 'installment-rate-carry-in',
           expectedReturn: 0,
-          currentValue: 0,
+          currentValue: 500000,
           monthlyContributions: [
             { startMonth: '2023-01', amount: 100000 },
             { startMonth: '2024-01', amount: 0 },
@@ -409,8 +411,8 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   });
 
   assert.strictEqual(transfers[2024], 0);
-  assert.strictEqual(transfers[2025], 120000);
-  assert.strictEqual(transfers[2026], 108000);
+  assert.strictEqual(transfers[2025], 50000);
+  assert.strictEqual(transfers[2026], 45000);
 })();
 
 (function testSuggestedWithdrawMonthUsesRetirementReferenceMonth() {
@@ -419,6 +421,44 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
     '2050-01'
   );
   assert.strictEqual(calculateSuggestedWithdrawMonth({ birthDate: '' }), '');
+})();
+
+(function testProjectionStartsFromCurrentValueAndIgnoresHistoricalRebuild() {
+  const plan = {
+    expectedReturn: 0,
+    currentValue: 1000000,
+    withdrawalDay: 1,
+    monthlyContributions: [
+      { startMonth: '2022-01', amount: 30000 },
+      { startMonth: '2024-04', amount: 40000 },
+    ],
+    lumpSums: [
+      { month: '2023-06', amount: 500000 },
+      { month: '2024-06', amount: 100000 },
+    ],
+  };
+
+  const projection = projectPlanAssetDetails(plan, '', '2024-07', {
+    baseMonth: '2024-05',
+    asOfDate: '2024-07-31',
+  });
+
+  assert.strictEqual(projection.amount, 1220000);
+  assert.strictEqual(projection.baseMonth, '2024-05');
+  assert.strictEqual(
+    JSON.stringify(projection.appliedMonthly),
+    JSON.stringify([
+      { month: '2024-05', amount: 40000 },
+      { month: '2024-06', amount: 40000 },
+      { month: '2024-07', amount: 40000 },
+    ])
+  );
+  assert.strictEqual(
+    JSON.stringify(projection.appliedLumpSums),
+    JSON.stringify([
+      { month: '2024-06', amount: 100000 },
+    ])
+  );
 })();
 
 console.log('cashflow asset withdrawal tests passed');

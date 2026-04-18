@@ -4425,15 +4425,7 @@ function buildAnnualAssetWithdrawalTransfersByYear({
 }
 
 function calculatePlanCarryInBalanceBeforeMonth(plan, startMonth) {
-  const currentValue = Math.max(Number(plan?.currentValue) || 0, 0);
-  if (!parseMonth(startMonth)) return currentValue;
-
-  const projectionTargetMonth = subtractOneMonth(startMonth);
-  if (!parseMonth(projectionTargetMonth)) return currentValue;
-
-  const projected = projectPlanAssetDetails(plan, "", projectionTargetMonth);
-  const projectedCarryIn = Math.max(Number(projected?.amount) || 0, 0);
-  return currentValue + projectedCarryIn;
+  return Math.max(Number(plan?.currentValue) || 0, 0);
 }
 
 function buildAssetLumpInvestmentsByMonth(settings) {
@@ -5006,20 +4998,15 @@ function resolvePlanContributionEndMonth(plan) {
   return parseMonth(plan?.withdrawMonth) ? plan.withdrawMonth : null;
 }
 
-function resolveProjectionStartMonth(plan, targetMonth) {
-  const monthlyStart = (Array.isArray(plan.monthlyContributions) ? plan.monthlyContributions : [])
-    .map((history) => history.startMonth)
-    .filter((month) => parseMonth(month) && isMonthOnOrAfter(targetMonth, month))
-    .sort(compareMonth)[0];
+function resolvePlanBalanceBaseMonth(plan, targetMonth, options = {}) {
+  const explicitBaseMonth = parseMonth(options?.baseMonth) ? options.baseMonth : "";
+  if (explicitBaseMonth) return explicitBaseMonth;
 
-  const lumpStart = (Array.isArray(plan.lumpSums) ? plan.lumpSums : [])
-    .map((history) => history.month)
-    .filter((month) => parseMonth(month) && isMonthOnOrAfter(targetMonth, month))
-    .sort(compareMonth)[0];
+  const asOfDate = resolveAsOfDate(options?.asOfDate);
+  const asOfMonth = asOfDate ? formatMonth(asOfDate.getFullYear(), asOfDate.getMonth()) : todayISO().slice(0, 7);
+  if (!parseMonth(targetMonth)) return asOfMonth;
 
-  if (!monthlyStart) return lumpStart || null;
-  if (!lumpStart) return monthlyStart;
-  return compareMonth(monthlyStart, lumpStart) <= 0 ? monthlyStart : lumpStart;
+  return compareMonth(asOfMonth, targetMonth) <= 0 ? asOfMonth : targetMonth;
 }
 
 function resolvePlanSimulationTargetMonth(plan, baseTargetMonth) {
@@ -5098,16 +5085,30 @@ function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, op
   const targetMonth = explicitTargetMonth || resolveWithdrawExecutionMonth(plan);
   const asOfDate = resolveAsOfDate(options?.asOfDate);
   if (!targetMonth) {
-    return { amount: 0, startMonth: null, targetMonth, months: 0, appliedMonthly: [], appliedLumpSums: [] };
+    return {
+      amount: Math.max(Number(plan?.currentValue) || 0, 0),
+      baseMonth: null,
+      targetMonth,
+      months: 0,
+      appliedMonthly: [],
+      appliedLumpSums: [],
+    };
   }
 
-  const startMonth = resolveProjectionStartMonth(plan, targetMonth);
-  if (!startMonth || compareMonth(startMonth, targetMonth) > 0) {
-    return { amount: 0, startMonth, targetMonth, months: 0, appliedMonthly: [], appliedLumpSums: [] };
+  const baseMonth = resolvePlanBalanceBaseMonth(plan, targetMonth, options);
+  if (!baseMonth || compareMonth(baseMonth, targetMonth) > 0) {
+    return {
+      amount: Math.max(Number(plan?.currentValue) || 0, 0),
+      baseMonth,
+      targetMonth,
+      months: 0,
+      appliedMonthly: [],
+      appliedLumpSums: [],
+    };
   }
 
-  let month = startMonth;
-  let total = 0;
+  let month = baseMonth;
+  let total = Math.max(Number(plan?.currentValue) || 0, 0);
   const appliedMonthly = [];
   const appliedLumpSums = [];
 
@@ -5133,9 +5134,9 @@ function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, op
 
   return {
     amount: Math.round(total),
-    startMonth,
+    baseMonth,
     targetMonth,
-    months: monthsBetweenInclusive(startMonth, targetMonth),
+    months: monthsBetweenInclusive(baseMonth, targetMonth),
     appliedMonthly,
     appliedLumpSums,
   };
