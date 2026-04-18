@@ -4201,7 +4201,7 @@ function buildAssetWithdrawalTransfersByMonth(settings) {
   }, {});
 }
 
-function calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEndMonth) {
+function calculatePlanInstallmentActiveMonthsInYear(plan, yearStartMonth, yearEndMonth) {
   if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return 0;
   if (compareMonth(yearStartMonth, yearEndMonth) > 0) return 0;
   if (typeof plan?.useInstallment === "boolean" && !plan.useInstallment) return 0;
@@ -4286,34 +4286,54 @@ function resolvePlanAnnualLumpSumWithdrawalAmount(plan, yearStartMonth, yearEndM
   return Math.min(lumpSumAmount, safeAvailableBalance);
 }
 
-function calculatePlanAnnualBalanceSnapshot(plan, { year, yearStartMonth, yearEndMonth, yearStartBalance }) {
-  const normalizedYearStartBalance = Math.max(Number(yearStartBalance) || 0, 0);
-  const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
-  const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
-  const availableBalanceBeforeWithdrawal = Math.max(normalizedYearStartBalance + annualContributions + annualLumpSums, 0);
+function buildPlanAnnualBalanceRows(plan, { startYear, endYear, startMonth, referenceMonth }) {
+  if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return [];
 
-  const activeMonthsInYear = calculatePlanWithdrawalActiveMonthsInYear(plan, yearStartMonth, yearEndMonth);
-  const annualInstallmentWithdrawal = activeMonthsInYear > 0
-    ? resolvePlanAnnualInstallmentWithdrawalAmount(plan, availableBalanceBeforeWithdrawal, activeMonthsInYear)
-    : 0;
-  const annualLumpSumWithdrawal = resolvePlanAnnualLumpSumWithdrawalAmount(
-    plan,
-    yearStartMonth,
-    yearEndMonth,
-    availableBalanceBeforeWithdrawal
-  );
-  const requestedWithdrawal = annualInstallmentWithdrawal + annualLumpSumWithdrawal;
-  const annualWithdrawal = Math.min(requestedWithdrawal, availableBalanceBeforeWithdrawal);
+  const rows = [];
+  let carryBalance = Math.max(Number(plan?.currentValue) || 0, 0);
 
-  const balanceAfterWithdrawal = Math.max(availableBalanceBeforeWithdrawal - annualWithdrawal, 0);
-  const annualReturnRate = parseRateInput(plan?.expectedReturn) / 100;
-  const annualReturn = balanceAfterWithdrawal * annualReturnRate;
-  const yearEndBalance = Math.max(balanceAfterWithdrawal + annualReturn, 0);
+  for (let year = startYear; year <= endYear; year += 1) {
+    const yearStartMonth = year === startYear ? startMonth : formatMonth(year, 0);
+    const yearEndMonth = year === endYear ? referenceMonth : formatMonth(year, 11);
+    if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth) || compareMonth(yearStartMonth, yearEndMonth) > 0) continue;
 
-  return {
-    annualWithdrawal,
-    yearEndBalance,
-  };
+    const yearStartBalance = Math.max(carryBalance, 0);
+    const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
+    const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
+    const balanceBeforeWithdrawal = Math.max(yearStartBalance + annualContributions + annualLumpSums, 0);
+
+    const annualLumpSumWithdrawal = resolvePlanAnnualLumpSumWithdrawalAmount(
+      plan,
+      yearStartMonth,
+      yearEndMonth,
+      balanceBeforeWithdrawal
+    );
+    const balanceAfterLumpSumWithdrawal = Math.max(balanceBeforeWithdrawal - annualLumpSumWithdrawal, 0);
+
+    const activeMonthsInYear = calculatePlanInstallmentActiveMonthsInYear(plan, yearStartMonth, yearEndMonth);
+    const annualInstallmentWithdrawal = activeMonthsInYear > 0
+      ? resolvePlanAnnualInstallmentWithdrawalAmount(plan, balanceAfterLumpSumWithdrawal, activeMonthsInYear)
+      : 0;
+    const balanceAfterWithdrawal = Math.max(balanceAfterLumpSumWithdrawal - annualInstallmentWithdrawal, 0);
+
+    const annualReturnRate = parseRateInput(plan?.expectedReturn) / 100;
+    const annualReturn = balanceAfterWithdrawal * annualReturnRate;
+    const yearEndBalance = Math.max(balanceAfterWithdrawal + annualReturn, 0);
+
+    rows.push({
+      year,
+      yearStartBalance,
+      annualContributions,
+      annualLumpSums,
+      annualLumpSumWithdrawal,
+      annualInstallmentWithdrawal,
+      annualReturn,
+      yearEndBalance,
+    });
+    carryBalance = yearEndBalance;
+  }
+
+  return rows;
 }
 
 function buildAnnualAssetFormationBalancesByYear({
@@ -4393,30 +4413,26 @@ function buildAnnualAssetSnapshotsByYear({
   if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
 
   const snapshotsByYear = {};
-  const planBalances = settings.plans.map((plan) => calculatePlanCarryInBalanceBeforeMonth(plan, startMonth));
+  const normalizedPlans = settings.plans.map((plan) => normalizePlan(plan));
+  const annualRowsByPlan = normalizedPlans.map((plan) => buildPlanAnnualBalanceRows(plan, {
+    startYear,
+    endYear,
+    startMonth,
+    referenceMonth,
+  }));
 
   for (let year = startYear; year <= endYear; year += 1) {
     const age = resolveAgeAtYear(settings.birthDate, year);
     if (!Number.isFinite(age) || age > targetAge) continue;
-    const yearStartMonth = year === startYear ? startMonth : formatMonth(year, 0);
-    const yearEndMonth = year === endYear ? referenceMonth : formatMonth(year, 11);
-    if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth) || compareMonth(yearStartMonth, yearEndMonth) > 0) continue;
 
-    let totalWithdrawalForYear = 0;
-    let totalEndingBalanceForYear = 0;
-    settings.plans.forEach((plan, planIndex) => {
-      const yearStartBalance = Math.max(Number(planBalances[planIndex]) || 0, 0);
-      const snapshot = calculatePlanAnnualBalanceSnapshot(plan, {
-        year,
-        yearStartMonth,
-        yearEndMonth,
-        yearStartBalance,
-      });
+    const annualRows = annualRowsByPlan
+      .map((rows) => rows.find((row) => row.year === year))
+      .filter(Boolean);
 
-      totalWithdrawalForYear += snapshot.annualWithdrawal;
-      totalEndingBalanceForYear += snapshot.yearEndBalance;
-      planBalances[planIndex] = snapshot.yearEndBalance;
-    });
+    const totalWithdrawalForYear = annualRows.reduce((sum, row) => (
+      sum + row.annualLumpSumWithdrawal + row.annualInstallmentWithdrawal
+    ), 0);
+    const totalEndingBalanceForYear = annualRows.reduce((sum, row) => sum + row.yearEndBalance, 0);
 
     snapshotsByYear[year] = {
       withdrawal: Math.round(totalWithdrawalForYear),
@@ -4425,10 +4441,6 @@ function buildAnnualAssetSnapshotsByYear({
   }
 
   return snapshotsByYear;
-}
-
-function calculatePlanCarryInBalanceBeforeMonth(plan, startMonth) {
-  return Math.max(Number(plan?.currentValue) || 0, 0);
 }
 
 function buildAssetLumpInvestmentsByMonth(settings) {
