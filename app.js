@@ -1000,6 +1000,7 @@ function normalizePlan(rawPlan) {
   const normalizedInstallmentAmount = Number(plan.installmentAmount ?? plan.hybridInstallmentAmount ?? plan.withdrawalAmount);
   const normalizedInstallmentRate = Number(plan.installmentRate ?? plan.hybridInstallmentRate ?? plan.withdrawalRate);
   const normalizedLumpSumAmount = Number(plan.lumpSumAmount ?? plan.hybridLumpSumAmount);
+  const normalizedLumpSumRate = Number(plan.lumpSumRate ?? plan.hybridLumpSumRate);
   const lumpSumDate = parseMonth(plan.lumpSumDate)
     ? plan.lumpSumDate
     : (parseMonth(plan.hybridLumpSumDate)
@@ -1010,16 +1011,26 @@ function normalizePlan(rawPlan) {
     : (plan.hybridInstallmentMode === "amount" || plan.hybridInstallmentMode === "rate"
       ? plan.hybridInstallmentMode
       : (plan.withdrawalMode === "amount" || plan.withdrawalMode === "rate" ? plan.withdrawalMode : ""));
+  const lumpSumMode = plan.lumpSumMode === "amount" || plan.lumpSumMode === "rate"
+    ? plan.lumpSumMode
+    : (plan.hybridLumpSumMode === "amount" || plan.hybridLumpSumMode === "rate"
+      ? plan.hybridLumpSumMode
+    : (plan.lumpSumAmountMode === "partial"
+      ? "amount"
+      : (Number.isFinite(normalizedLumpSumRate) ? "rate" : "amount")));
   const installmentStartAge = Number.isFinite(normalizedInstallmentStartAge) ? Math.max(normalizedInstallmentStartAge, 0) : null;
   const installmentEndAge = Number.isFinite(normalizedInstallmentEndAge) ? Math.max(normalizedInstallmentEndAge, 0) : null;
   const installmentAmount = Number.isFinite(normalizedInstallmentAmount) ? Math.max(normalizedInstallmentAmount, 0) : null;
   const installmentRate = Number.isFinite(normalizedInstallmentRate) ? Math.max(normalizedInstallmentRate, 0) : null;
   const lumpSumAmount = Number.isFinite(normalizedLumpSumAmount) ? Math.max(normalizedLumpSumAmount, 0) : null;
-  const lumpSumAmountMode = plan.lumpSumAmountMode === "partial" || plan.lumpSumAmountMode === "full"
-    ? plan.lumpSumAmountMode
-    : (lumpSumAmount !== null && lumpSumAmount > 0 ? "partial" : "full");
+  const lumpSumRate = Number.isFinite(normalizedLumpSumRate) ? Math.max(normalizedLumpSumRate, 0) : null;
+  const lumpSumAmountMode = lumpSumMode === "amount" ? "partial" : "full";
   const hasInstallmentSetting = Boolean(installmentMode || installmentStartAge !== null);
-  const hasLumpSumSetting = Boolean(lumpSumDate || lumpSumAmountMode === "partial" || (lumpSumAmount !== null && lumpSumAmount > 0));
+  const hasLumpSumSetting = Boolean(
+    lumpSumDate
+    || (lumpSumMode === "amount" && lumpSumAmount !== null && lumpSumAmount > 0)
+    || (lumpSumMode === "rate" && lumpSumRate !== null && lumpSumRate > 0)
+  );
   const withdrawalType = plan.withdrawalType === "lump_sum" || plan.withdrawalType === "installment" || plan.withdrawalType === "hybrid"
     ? plan.withdrawalType
     : hasInstallmentSetting && hasLumpSumSetting
@@ -1037,15 +1048,19 @@ function normalizePlan(rawPlan) {
     withdrawalDay: Math.max(Number(plan.withdrawalDay) || 1, 1),
     withdrawalType,
     lumpSumDate,
+    lumpSumMode,
     lumpSumAmountMode,
     lumpSumAmount,
+    lumpSumRate,
     installmentStartAge,
     installmentEndAge,
     installmentMode,
     installmentAmount,
     installmentRate,
     hybridLumpSumDate: lumpSumDate,
+    hybridLumpSumMode: lumpSumMode,
     hybridLumpSumAmount: lumpSumAmount,
+    hybridLumpSumRate: lumpSumRate,
     hybridInstallmentStartAge: installmentStartAge,
     hybridInstallmentMode: installmentMode,
     hybridInstallmentAmount: installmentAmount,
@@ -5620,33 +5635,59 @@ function createPlanBlock(plan = {}) {
               <input type="hidden" class="plan-withdrawal-type" value="${normalizedPlan.withdrawalType}" />
               <div class="plan-withdrawal-mode-panel plan-withdrawal-mode-lump" data-withdrawal-panel="lump_sum">
                 <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.lumpSumDate || ""}" /></label>
+                <div class="plan-sub-segment-wrap">
+                  <p class="plan-sub-segment-label">一括方式</p>
+                  <div class="plan-segment-control plan-lump-sum-mode-control" role="group" aria-label="一括方式">
+                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.lumpSumMode === "amount" ? " is-active" : ""}" data-lump-sum-mode="amount">金額</button>
+                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.lumpSumMode === "rate" ? " is-active" : ""}" data-lump-sum-mode="rate">率</button>
+                  </div>
+                </div>
+                <input type="hidden" class="plan-lump-sum-mode" value="${normalizedPlan.lumpSumMode}" />
+                <label class="plan-lump-sum-amount-wrap">一括解約額(円)<input class="plan-lump-sum-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.lumpSumAmount) ? numberWithComma.format(normalizedPlan.lumpSumAmount) : ""}" /></label>
+                <label class="plan-lump-sum-rate-wrap">一括解約率(%)<input class="plan-lump-sum-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.lumpSumRate) ? normalizedPlan.lumpSumRate : ""}" /></label>
               </div>
               <div class="plan-withdrawal-mode-panel plan-withdrawal-mode-installment" data-withdrawal-panel="installment">
                 <label>取崩開始年齢<input class="plan-withdrawal-start-age" type="number" min="0" step="1" value="${normalizedPlan.installmentStartAge ?? ""}" /></label>
                 <div class="plan-sub-segment-wrap">
                   <p class="plan-sub-segment-label">分割方式</p>
-                  <div class="plan-segment-control plan-withdrawal-mode-control" role="group" aria-label="分割方式">
-                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "amount" ? " is-active" : ""}" data-withdrawal-mode="amount">金額</button>
-                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "rate" ? " is-active" : ""}" data-withdrawal-mode="rate">率</button>
+                  <div class="plan-segment-control plan-installment-mode-control" role="group" aria-label="分割方式">
+                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "amount" ? " is-active" : ""}" data-installment-mode="amount">金額</button>
+                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "rate" ? " is-active" : ""}" data-installment-mode="rate">率</button>
                   </div>
                 </div>
-                <input type="hidden" class="plan-withdrawal-mode" value="${normalizedPlan.installmentMode}" />
-                <label class="plan-withdrawal-amount-wrap">年間取崩額<input class="plan-withdrawal-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.installmentAmount) ? numberWithComma.format(normalizedPlan.installmentAmount) : ""}" /></label>
-                <label class="plan-withdrawal-rate-wrap">年間取崩率(%)<input class="plan-withdrawal-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.installmentRate) ? normalizedPlan.installmentRate : ""}" /></label>
+                <input type="hidden" class="plan-installment-mode" value="${normalizedPlan.installmentMode}" />
+                <label class="plan-installment-amount-wrap">年間取崩額<input class="plan-installment-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.installmentAmount) ? numberWithComma.format(normalizedPlan.installmentAmount) : ""}" /></label>
+                <label class="plan-installment-rate-wrap">年間取崩率(%)<input class="plan-installment-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.installmentRate) ? normalizedPlan.installmentRate : ""}" /></label>
               </div>
               <div class="plan-withdrawal-mode-panel plan-withdrawal-mode-hybrid" data-withdrawal-panel="hybrid">
-                <label>一括解約年月<input class="plan-withdraw-month-hybrid" type="month" value="${normalizedPlan.lumpSumDate || ""}" /></label>
-                <label>一括解約額(円)<input class="plan-lump-sum-amount-hybrid js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.lumpSumAmount) ? numberWithComma.format(normalizedPlan.lumpSumAmount) : ""}" /></label>
-                <label>取崩開始年齢<input class="plan-withdrawal-start-age-hybrid" type="number" min="0" step="1" value="${normalizedPlan.installmentStartAge ?? ""}" /></label>
-                <div class="plan-sub-segment-wrap">
-                  <p class="plan-sub-segment-label">分割方式</p>
-                  <div class="plan-segment-control plan-withdrawal-mode-control-hybrid" role="group" aria-label="分割方式">
-                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "amount" ? " is-active" : ""}" data-withdrawal-mode-hybrid="amount">金額</button>
-                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "rate" ? " is-active" : ""}" data-withdrawal-mode-hybrid="rate">率</button>
+                <section class="plan-hybrid-section">
+                  <h5>一括設定</h5>
+                  <label>一括解約年月<input class="plan-withdraw-month-hybrid" type="month" value="${normalizedPlan.lumpSumDate || ""}" /></label>
+                  <div class="plan-sub-segment-wrap">
+                    <p class="plan-sub-segment-label">一括方式</p>
+                    <div class="plan-segment-control plan-lump-sum-mode-control-hybrid" role="group" aria-label="一括方式">
+                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.lumpSumMode === "amount" ? " is-active" : ""}" data-lump-sum-mode-hybrid="amount">金額</button>
+                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.lumpSumMode === "rate" ? " is-active" : ""}" data-lump-sum-mode-hybrid="rate">率</button>
+                    </div>
                   </div>
-                </div>
-                <label class="plan-withdrawal-amount-wrap-hybrid">年間取崩額<input class="plan-withdrawal-amount-hybrid js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.installmentAmount) ? numberWithComma.format(normalizedPlan.installmentAmount) : ""}" /></label>
-                <label class="plan-withdrawal-rate-wrap-hybrid">年間取崩率(%)<input class="plan-withdrawal-rate-hybrid" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.installmentRate) ? normalizedPlan.installmentRate : ""}" /></label>
+                  <input type="hidden" class="plan-lump-sum-mode-hybrid" value="${normalizedPlan.lumpSumMode}" />
+                  <label class="plan-lump-sum-amount-wrap-hybrid">一括解約額(円)<input class="plan-lump-sum-amount-hybrid js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.lumpSumAmount) ? numberWithComma.format(normalizedPlan.lumpSumAmount) : ""}" /></label>
+                  <label class="plan-lump-sum-rate-wrap-hybrid">一括解約率(%)<input class="plan-lump-sum-rate-hybrid" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.lumpSumRate) ? normalizedPlan.lumpSumRate : ""}" /></label>
+                </section>
+                <section class="plan-hybrid-section">
+                  <h5>分割設定</h5>
+                  <label>取崩開始年齢<input class="plan-withdrawal-start-age-hybrid" type="number" min="0" step="1" value="${normalizedPlan.installmentStartAge ?? ""}" /></label>
+                  <div class="plan-sub-segment-wrap">
+                    <p class="plan-sub-segment-label">分割方式</p>
+                    <div class="plan-segment-control plan-installment-mode-control-hybrid" role="group" aria-label="分割方式">
+                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "amount" ? " is-active" : ""}" data-installment-mode-hybrid="amount">金額</button>
+                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "rate" ? " is-active" : ""}" data-installment-mode-hybrid="rate">率</button>
+                    </div>
+                  </div>
+                  <input type="hidden" class="plan-installment-mode-hybrid" value="${normalizedPlan.installmentMode}" />
+                  <label class="plan-installment-amount-wrap-hybrid">年間取崩額<input class="plan-installment-amount-hybrid js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.installmentAmount) ? numberWithComma.format(normalizedPlan.installmentAmount) : ""}" /></label>
+                  <label class="plan-installment-rate-wrap-hybrid">年間取崩率(%)<input class="plan-installment-rate-hybrid" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.installmentRate) ? normalizedPlan.installmentRate : ""}" /></label>
+                </section>
               </div>
             </section>
             <p class="plan-withdraw-hint">※一括解約年月が未設定の場合は、積立支出を継続します。</p>
@@ -5684,25 +5725,38 @@ function createPlanBlock(plan = {}) {
   const withdrawalTypeButtons = Array.from(wrap.querySelectorAll("[data-withdrawal-type]"));
   const withdrawMonthField = wrap.querySelector(".plan-withdraw-month");
   const withdrawMonthHybridField = wrap.querySelector(".plan-withdraw-month-hybrid");
+  const lumpSumModeField = wrap.querySelector(".plan-lump-sum-mode");
+  const lumpSumModeHybridField = wrap.querySelector(".plan-lump-sum-mode-hybrid");
+  const lumpSumModeButtons = Array.from(wrap.querySelectorAll("[data-lump-sum-mode]"));
+  const lumpSumModeHybridButtons = Array.from(wrap.querySelectorAll("[data-lump-sum-mode-hybrid]"));
+  const lumpSumAmountWrap = wrap.querySelector(".plan-lump-sum-amount-wrap");
+  const lumpSumRateWrap = wrap.querySelector(".plan-lump-sum-rate-wrap");
+  const lumpSumAmountField = wrap.querySelector(".plan-lump-sum-amount");
+  const lumpSumRateField = wrap.querySelector(".plan-lump-sum-rate");
+  const lumpSumAmountWrapHybrid = wrap.querySelector(".plan-lump-sum-amount-wrap-hybrid");
+  const lumpSumRateWrapHybrid = wrap.querySelector(".plan-lump-sum-rate-wrap-hybrid");
   const lumpSumAmountHybridField = wrap.querySelector(".plan-lump-sum-amount-hybrid");
-  const withdrawalModeField = wrap.querySelector(".plan-withdrawal-mode");
-  const withdrawalModeButtons = Array.from(wrap.querySelectorAll("[data-withdrawal-mode]"));
-  const withdrawalModeHybridButtons = Array.from(wrap.querySelectorAll("[data-withdrawal-mode-hybrid]"));
-  const withdrawalAmountWrap = wrap.querySelector(".plan-withdrawal-amount-wrap");
-  const withdrawalRateWrap = wrap.querySelector(".plan-withdrawal-rate-wrap");
-  const withdrawalAmountField = wrap.querySelector(".plan-withdrawal-amount");
-  const withdrawalAmountWrapHybrid = wrap.querySelector(".plan-withdrawal-amount-wrap-hybrid");
-  const withdrawalRateWrapHybrid = wrap.querySelector(".plan-withdrawal-rate-wrap-hybrid");
-  const withdrawalAmountHybridField = wrap.querySelector(".plan-withdrawal-amount-hybrid");
-  const withdrawalRateField = wrap.querySelector(".plan-withdrawal-rate");
-  const withdrawalRateHybridField = wrap.querySelector(".plan-withdrawal-rate-hybrid");
+  const lumpSumRateHybridField = wrap.querySelector(".plan-lump-sum-rate-hybrid");
+  const installmentModeField = wrap.querySelector(".plan-installment-mode");
+  const installmentModeHybridField = wrap.querySelector(".plan-installment-mode-hybrid");
+  const installmentModeButtons = Array.from(wrap.querySelectorAll("[data-installment-mode]"));
+  const installmentModeHybridButtons = Array.from(wrap.querySelectorAll("[data-installment-mode-hybrid]"));
+  const installmentAmountWrap = wrap.querySelector(".plan-installment-amount-wrap");
+  const installmentRateWrap = wrap.querySelector(".plan-installment-rate-wrap");
+  const installmentAmountField = wrap.querySelector(".plan-installment-amount");
+  const installmentAmountWrapHybrid = wrap.querySelector(".plan-installment-amount-wrap-hybrid");
+  const installmentRateWrapHybrid = wrap.querySelector(".plan-installment-rate-wrap-hybrid");
+  const installmentAmountHybridField = wrap.querySelector(".plan-installment-amount-hybrid");
+  const installmentRateField = wrap.querySelector(".plan-installment-rate");
+  const installmentRateHybridField = wrap.querySelector(".plan-installment-rate-hybrid");
   const withdrawalPanels = Array.from(wrap.querySelectorAll("[data-withdrawal-panel]"));
   const title = wrap.querySelector(".plan-card-title");
   const tag = wrap.querySelector(".plan-card-tag");
   setupFormattedAmountInput(currentValueField);
-  setupFormattedAmountInput(withdrawalAmountField);
-  setupFormattedAmountInput(withdrawalAmountHybridField);
+  setupFormattedAmountInput(lumpSumAmountField);
   setupFormattedAmountInput(lumpSumAmountHybridField);
+  setupFormattedAmountInput(installmentAmountField);
+  setupFormattedAmountInput(installmentAmountHybridField);
 
   const refreshAutoYield = () => {
     const draftPlan = {
@@ -5769,48 +5823,74 @@ function createPlanBlock(plan = {}) {
     });
     setSegmentActiveState(withdrawalTypeButtons, currentType, (button) => button.dataset.withdrawalType);
   };
-  const syncWithdrawalModeFields = () => {
-    const mode = withdrawalModeField?.value || "";
+  const syncLumpSumModeFields = () => {
+    const mode = lumpSumModeField?.value || "amount";
     const currentType = withdrawalTypeField?.value || "lump_sum";
-    setSegmentActiveState(withdrawalModeButtons, mode, (button) => button.dataset.withdrawalMode);
-    setSegmentActiveState(withdrawalModeHybridButtons, mode, (button) => button.dataset.withdrawalModeHybrid);
-    setFieldVisibility(withdrawalAmountWrap, mode === "amount");
-    setFieldVisibility(withdrawalRateWrap, mode === "rate");
-    setFieldVisibility(withdrawalAmountWrapHybrid, mode === "amount");
-    setFieldVisibility(withdrawalRateWrapHybrid, mode === "rate");
-    setFieldVisibility(withdrawalAmountWrap, currentType === "installment" && mode === "amount");
-    setFieldVisibility(withdrawalRateWrap, currentType === "installment" && mode === "rate");
-    setFieldVisibility(withdrawalAmountWrapHybrid, currentType === "hybrid" && mode === "amount");
-    setFieldVisibility(withdrawalRateWrapHybrid, currentType === "hybrid" && mode === "rate");
+    setSegmentActiveState(lumpSumModeButtons, mode, (button) => button.dataset.lumpSumMode);
+    setSegmentActiveState(lumpSumModeHybridButtons, mode, (button) => button.dataset.lumpSumModeHybrid);
+    setFieldVisibility(lumpSumAmountWrap, currentType === "lump_sum" && mode === "amount");
+    setFieldVisibility(lumpSumRateWrap, currentType === "lump_sum" && mode === "rate");
+    setFieldVisibility(lumpSumAmountWrapHybrid, currentType === "hybrid" && mode === "amount");
+    setFieldVisibility(lumpSumRateWrapHybrid, currentType === "hybrid" && mode === "rate");
+  };
+  const syncInstallmentModeFields = () => {
+    const mode = installmentModeField?.value || "amount";
+    const currentType = withdrawalTypeField?.value || "lump_sum";
+    setSegmentActiveState(installmentModeButtons, mode, (button) => button.dataset.installmentMode);
+    setSegmentActiveState(installmentModeHybridButtons, mode, (button) => button.dataset.installmentModeHybrid);
+    setFieldVisibility(installmentAmountWrap, currentType === "installment" && mode === "amount");
+    setFieldVisibility(installmentRateWrap, currentType === "installment" && mode === "rate");
+    setFieldVisibility(installmentAmountWrapHybrid, currentType === "hybrid" && mode === "amount");
+    setFieldVisibility(installmentRateWrapHybrid, currentType === "hybrid" && mode === "rate");
   };
   withdrawalTypeButtons.forEach((button) => {
     button.addEventListener("click", () => {
       if (!withdrawalTypeField) return;
       withdrawalTypeField.value = button.dataset.withdrawalType || "lump_sum";
       syncWithdrawalTypePanels();
-      syncWithdrawalModeFields();
+      syncLumpSumModeFields();
+      syncInstallmentModeFields();
     });
   });
-  withdrawalModeButtons.forEach((button) => {
+  lumpSumModeButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      if (!withdrawalModeField) return;
-      withdrawalModeField.value = button.dataset.withdrawalMode || "";
-      syncWithdrawalModeFields();
+      const nextMode = button.dataset.lumpSumMode || "amount";
+      if (lumpSumModeField) lumpSumModeField.value = nextMode;
+      if (lumpSumModeHybridField) lumpSumModeHybridField.value = nextMode;
+      syncLumpSumModeFields();
     });
   });
-  withdrawalModeHybridButtons.forEach((button) => {
+  lumpSumModeHybridButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      if (!withdrawalModeField) return;
-      withdrawalModeField.value = button.dataset.withdrawalModeHybrid || "";
-      syncWithdrawalModeFields();
+      const nextMode = button.dataset.lumpSumModeHybrid || "amount";
+      if (lumpSumModeField) lumpSumModeField.value = nextMode;
+      if (lumpSumModeHybridField) lumpSumModeHybridField.value = nextMode;
+      syncLumpSumModeFields();
+    });
+  });
+  installmentModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextMode = button.dataset.installmentMode || "amount";
+      if (installmentModeField) installmentModeField.value = nextMode;
+      if (installmentModeHybridField) installmentModeHybridField.value = nextMode;
+      syncInstallmentModeFields();
+    });
+  });
+  installmentModeHybridButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextMode = button.dataset.installmentModeHybrid || "amount";
+      if (installmentModeField) installmentModeField.value = nextMode;
+      if (installmentModeHybridField) installmentModeHybridField.value = nextMode;
+      syncInstallmentModeFields();
     });
   });
   wrap.dataset.planExpanded = "true";
   wrap.classList.add("is-expanded");
   refreshPlanVisual();
   refreshAutoYield();
-  syncWithdrawalModeFields();
   syncWithdrawalTypePanels();
+  syncLumpSumModeFields();
+  syncInstallmentModeFields();
 
   wrap.querySelector(".add-lump").addEventListener("click", () => {
     lumpList.appendChild(createHistoryRow({ type: "lump", onChange: refreshAutoYield }));
@@ -5969,22 +6049,34 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
       const lumpSumDate = isHybrid
         ? (block.querySelector(".plan-withdraw-month-hybrid")?.value || "")
         : (block.querySelector(".plan-withdraw-month")?.value || "");
+      const lumpSumMode = isHybrid
+        ? (block.querySelector(".plan-lump-sum-mode-hybrid")?.value || "amount")
+        : (block.querySelector(".plan-lump-sum-mode")?.value || "amount");
+      const lumpSumAmount = isHybrid
+        ? parseOptionalAmountInput(block.querySelector(".plan-lump-sum-amount-hybrid")?.value)
+        : parseOptionalAmountInput(block.querySelector(".plan-lump-sum-amount")?.value);
+      const lumpSumRate = isHybrid
+        ? parseOptionalRateInput(block.querySelector(".plan-lump-sum-rate-hybrid")?.value)
+        : parseOptionalRateInput(block.querySelector(".plan-lump-sum-rate")?.value);
       const installmentStartAge = isHybrid
         ? parseOptionalAgeInput(block.querySelector(".plan-withdrawal-start-age-hybrid")?.value)
         : parseOptionalAgeInput(block.querySelector(".plan-withdrawal-start-age")?.value);
-      const installmentMode = block.querySelector(".plan-withdrawal-mode")?.value || "";
+      const installmentMode = isHybrid
+        ? (block.querySelector(".plan-installment-mode-hybrid")?.value || "amount")
+        : (block.querySelector(".plan-installment-mode")?.value || "amount");
       const installmentAmount = isHybrid
-        ? parseOptionalAmountInput(block.querySelector(".plan-withdrawal-amount-hybrid")?.value)
-        : parseOptionalAmountInput(block.querySelector(".plan-withdrawal-amount")?.value);
+        ? parseOptionalAmountInput(block.querySelector(".plan-installment-amount-hybrid")?.value)
+        : parseOptionalAmountInput(block.querySelector(".plan-installment-amount")?.value);
       const installmentRate = isHybrid
-        ? parseOptionalRateInput(block.querySelector(".plan-withdrawal-rate-hybrid")?.value)
-        : parseOptionalRateInput(block.querySelector(".plan-withdrawal-rate")?.value);
+        ? parseOptionalRateInput(block.querySelector(".plan-installment-rate-hybrid")?.value)
+        : parseOptionalRateInput(block.querySelector(".plan-installment-rate")?.value);
       const hybridLumpSumDate = block.querySelector(".plan-withdraw-month-hybrid")?.value || "";
       const hybridLumpSumAmount = parseOptionalAmountInput(block.querySelector(".plan-lump-sum-amount-hybrid")?.value);
+      const hybridLumpSumRate = parseOptionalRateInput(block.querySelector(".plan-lump-sum-rate-hybrid")?.value);
       const hybridInstallmentStartAge = parseOptionalAgeInput(block.querySelector(".plan-withdrawal-start-age-hybrid")?.value);
-      const hybridInstallmentMode = block.querySelector(".plan-withdrawal-mode")?.value || "";
-      const hybridInstallmentAmount = parseOptionalAmountInput(block.querySelector(".plan-withdrawal-amount-hybrid")?.value);
-      const hybridInstallmentRate = parseOptionalRateInput(block.querySelector(".plan-withdrawal-rate-hybrid")?.value);
+      const hybridInstallmentMode = block.querySelector(".plan-installment-mode-hybrid")?.value || "amount";
+      const hybridInstallmentAmount = parseOptionalAmountInput(block.querySelector(".plan-installment-amount-hybrid")?.value);
+      const hybridInstallmentRate = parseOptionalRateInput(block.querySelector(".plan-installment-rate-hybrid")?.value);
 
       return {
         id: block.querySelector(".plan-id").value,
@@ -6000,15 +6092,19 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
         expectedReturn: parseRateInput(block.querySelector(".plan-expected-return").value),
         withdrawalType,
         lumpSumDate: withdrawalType === "lump_sum" ? lumpSumDate : (isHybrid ? hybridLumpSumDate : ""),
-        lumpSumAmountMode: block.querySelector(".plan-lump-sum-amount-mode")?.value || "full",
-        lumpSumAmount: isHybrid ? hybridLumpSumAmount : null,
+        lumpSumMode: withdrawalType === "lump_sum" || isHybrid ? lumpSumMode : "amount",
+        lumpSumAmountMode: lumpSumMode === "amount" ? "partial" : "full",
+        lumpSumAmount: (withdrawalType === "lump_sum" || isHybrid) && lumpSumMode === "amount" ? lumpSumAmount : null,
+        lumpSumRate: (withdrawalType === "lump_sum" || isHybrid) && lumpSumMode === "rate" ? lumpSumRate : null,
         installmentStartAge: isInstallment || isHybrid ? installmentStartAge : null,
         installmentEndAge: null,
         installmentMode: isInstallment || isHybrid ? installmentMode : "",
         installmentAmount: (isInstallment || isHybrid) && installmentMode === "amount" ? installmentAmount : null,
         installmentRate: (isInstallment || isHybrid) && installmentMode === "rate" ? installmentRate : null,
         hybridLumpSumDate,
+        hybridLumpSumMode: block.querySelector(".plan-lump-sum-mode-hybrid")?.value || "amount",
         hybridLumpSumAmount,
+        hybridLumpSumRate,
         hybridInstallmentStartAge,
         hybridInstallmentMode,
         hybridInstallmentAmount,
