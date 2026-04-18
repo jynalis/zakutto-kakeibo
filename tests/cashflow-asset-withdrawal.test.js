@@ -216,6 +216,40 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2026], 0);
 })();
 
+(function testLumpSumRateModeIncludesCarryInBalanceBeforeStartMonth() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'lump-rate-carry-in',
+          expectedReturn: 0,
+          currentValue: 0,
+          monthlyContributions: [
+            { startMonth: '2022-01', amount: 50000 },
+            { startMonth: '2023-01', amount: 0 },
+          ],
+          lumpSums: [
+            { month: '2023-06', amount: 300000 },
+          ],
+          useLumpSum: true,
+          lumpSumDate: '2025-03',
+          lumpSumMode: 'rate',
+          lumpSumRate: 100,
+        },
+      ],
+    },
+    startYear: 2024,
+    endYear: 2025,
+    startMonth: '2024-01',
+    referenceMonth: '2025-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2024], 0);
+  assert.strictEqual(transfers[2025], 900000);
+})();
+
 (function testUnsetInstallmentStartDateDoesNotApplyWithdrawals() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
     settings: {
@@ -345,6 +379,38 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
   assert.strictEqual(transfers[2026], 100000);
   assert.strictEqual(transfers[2027], 100000);
   assert.strictEqual(transfers[2028], 100000);
+})();
+
+(function testInstallmentRateModeIncludesCarryInBalanceBeforeStartMonth() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'installment-rate-carry-in',
+          expectedReturn: 0,
+          currentValue: 0,
+          monthlyContributions: [
+            { startMonth: '2023-01', amount: 100000 },
+            { startMonth: '2024-01', amount: 0 },
+          ],
+          lumpSums: [],
+          withdrawalStartDate: '2025-01',
+          withdrawalMode: 'rate',
+          withdrawalRate: 10,
+        },
+      ],
+    },
+    startYear: 2024,
+    endYear: 2026,
+    startMonth: '2024-01',
+    referenceMonth: '2026-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2024], 0);
+  assert.strictEqual(transfers[2025], 120000);
+  assert.strictEqual(transfers[2026], 108000);
 })();
 
 (function testSuggestedWithdrawMonthUsesRetirementReferenceMonth() {
