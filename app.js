@@ -4399,15 +4399,12 @@ function calculateCashflowContractProjection(contract, { startYear, endYear, sta
   if (!parseMonth(startMonth) || !parseMonth(referenceMonth)) return {};
   if (compareMonth(startMonth, referenceMonth) > 0) return {};
 
-  const projectionStartMonth = resolveCashflowContractProjectionStartMonth(contract, startMonth);
-  if (!parseMonth(projectionStartMonth) || compareMonth(projectionStartMonth, referenceMonth) > 0) return {};
-
-  const months = getMonthRangeInclusive(projectionStartMonth, referenceMonth);
+  const months = getMonthRangeInclusive(startMonth, referenceMonth);
   if (months.length === 0) return {};
 
   const annualReturnRate = Math.max(parseRateInput(contract?.expectedReturn), 0) / 100;
   const monthlyReturnRate = Math.pow(1 + annualReturnRate, 1 / 12) - 1;
-  let balance = resolvePlanInitialPrincipal(contract);
+  let balance = Math.max(Number(contract?.currentValue) || 0, 0);
   const projectionByYear = {};
 
   months.forEach((month) => {
@@ -4430,22 +4427,6 @@ function calculateCashflowContractProjection(contract, { startYear, endYear, sta
   });
 
   return projectionByYear;
-}
-
-function resolveCashflowContractProjectionStartMonth(contract, fallbackStartMonth) {
-  const candidateMonths = [];
-  if (parseMonth(fallbackStartMonth)) candidateMonths.push(fallbackStartMonth);
-
-  const monthlyStartMonths = (Array.isArray(contract?.monthlyContributions) ? contract.monthlyContributions : [])
-    .map((history) => history?.startMonth)
-    .filter((month) => parseMonth(month));
-  const lumpStartMonths = (Array.isArray(contract?.lumpSums) ? contract.lumpSums : [])
-    .map((history) => history?.month)
-    .filter((month) => parseMonth(month));
-  candidateMonths.push(...monthlyStartMonths, ...lumpStartMonths);
-
-  if (candidateMonths.length === 0) return parseMonth(fallbackStartMonth) ? fallbackStartMonth : null;
-  return candidateMonths.sort(compareMonth)[0];
 }
 
 function calculateContractProjection(contract, options) {

@@ -59,12 +59,10 @@ const buildAnnualAssetWithdrawalTransfersByYear = sandbox.buildAnnualAssetWithdr
 const buildAnnualAssetFormationBalancesByYear = sandbox.buildAnnualAssetFormationBalancesByYear;
 const calculateSuggestedWithdrawMonth = sandbox.calculateSuggestedWithdrawMonth;
 const projectPlanAssetDetails = sandbox.projectPlanAssetDetails;
-const calculateCashflowContractProjection = sandbox.calculateCashflowContractProjection;
 assert.strictEqual(typeof buildAnnualAssetWithdrawalTransfersByYear, 'function');
 assert.strictEqual(typeof buildAnnualAssetFormationBalancesByYear, 'function');
 assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
 assert.strictEqual(typeof projectPlanAssetDetails, 'function');
-assert.strictEqual(typeof calculateCashflowContractProjection, 'function');
 
 (function testAmountAndUnsetModes() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
@@ -743,60 +741,6 @@ assert.strictEqual(typeof calculateCashflowContractProjection, 'function');
 
   assert.strictEqual(highCurrentValueProjection.amount, 840000);
   assert.strictEqual(zeroCurrentValueProjection.amount, 840000);
-})();
-
-(function testCashflowContractProjectionUsesInitialPrincipalInsteadOfCurrentValue() {
-  const baseContract = {
-    expectedReturn: 0,
-    initialPrincipalAtStartMonth: 200000,
-    monthlyContributions: [
-      { startMonth: '2024-04', amount: 10000 },
-    ],
-    lumpSums: [
-      { month: '2024-05', amount: 50000 },
-    ],
-  };
-
-  const highCurrentValueProjection = calculateCashflowContractProjection({
-    ...baseContract,
-    currentValue: 9000000,
-  }, {
-    startYear: 2024,
-    endYear: 2024,
-    startMonth: '2024-04',
-    referenceMonth: '2024-12',
-  });
-  const lowCurrentValueProjection = calculateCashflowContractProjection({
-    ...baseContract,
-    currentValue: 0,
-  }, {
-    startYear: 2024,
-    endYear: 2024,
-    startMonth: '2024-04',
-    referenceMonth: '2024-12',
-  });
-
-  assert.strictEqual(highCurrentValueProjection[2024], 340000);
-  assert.strictEqual(lowCurrentValueProjection[2024], 340000);
-})();
-
-(function testCashflowContractProjectionAccumulatesFromSettingMonthBeforeTableStart() {
-  const projection = calculateCashflowContractProjection({
-    expectedReturn: 0,
-    currentValue: 1000,
-    initialPrincipalAtStartMonth: 50000,
-    monthlyContributions: [
-      { startMonth: '2024-10', amount: 20000 },
-    ],
-    lumpSums: [],
-  }, {
-    startYear: 2025,
-    endYear: 2025,
-    startMonth: '2025-01',
-    referenceMonth: '2025-12',
-  });
-
-  assert.strictEqual(projection[2025], 350000);
 })();
 
 console.log('cashflow asset withdrawal tests passed');
