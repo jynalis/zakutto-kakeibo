@@ -45,6 +45,7 @@ const profileForm = document.getElementById("profile-form");
 const entryStartMonthInput = document.getElementById("entry-start-month");
 const birthDateInput = document.getElementById("birth-date");
 const profileBasicSaveButton = document.getElementById("profile-basic-save-button");
+const profileBasicResetButton = document.getElementById("profile-basic-reset-button");
 const profileSubmitButton = document.getElementById("profile-submit-button") || profileForm?.querySelector('button[type="submit"]');
 const profileCancelButton = document.getElementById("profile-cancel-button");
 const assetProfileSubmitButton = document.getElementById("asset-profile-submit-button");
@@ -148,6 +149,11 @@ const memoModalInput = document.getElementById("memo-modal-input");
 const memoModalSaveButton = document.getElementById("memo-modal-save");
 const memoModalCancelButton = document.getElementById("memo-modal-cancel");
 const memoModalCloseControls = Array.from(document.querySelectorAll("[data-memo-modal-close]"));
+const settingsResetConfirmModal = document.getElementById("settings-reset-confirm-modal");
+const settingsResetConfirmCloseControls = Array.from(document.querySelectorAll("[data-settings-reset-close]"));
+const settingsResetCancelButton = document.getElementById("settings-reset-cancel-button");
+const settingsResetConfirmButton = document.getElementById("settings-reset-confirm-button");
+const settingsResetToast = document.getElementById("settings-reset-toast");
 const memoTriggerButtons = Array.from(document.querySelectorAll("[data-memo-trigger]"));
 const accordionCloseTimers = new WeakMap();
 const accordionCollapseWaiters = new WeakMap();
@@ -187,6 +193,9 @@ let activeInputMainTab = "monthly";
 let activePrimaryMainTab = "dashboard";
 let activeCashflowSubTab = "income-settings";
 let activeMemoDraft = null;
+let settingsResetInProgress = false;
+let settingsResetToastTimerId = 0;
+let settingsResetConfirmResolver = null;
 const activeInputSubTabs = {
   basic: "register",
   "asset-formation": "register",
@@ -1239,6 +1248,111 @@ function importBackupFile(file) {
     }
   };
   reader.readAsText(file);
+}
+
+function openSettingsResetConfirmModal() {
+  if (!settingsResetConfirmModal) {
+    return Promise.resolve(window.confirm("保存済みの入力内容を初期状態に戻します。よろしいですか？"));
+  }
+  settingsResetConfirmModal.hidden = false;
+  document.body.classList.add("is-memo-modal-open");
+  return new Promise((resolve) => {
+    settingsResetConfirmResolver = resolve;
+    settingsResetConfirmButton?.focus();
+  });
+}
+
+function resolveSettingsResetConfirm(decision) {
+  if (settingsResetConfirmModal) {
+    settingsResetConfirmModal.hidden = true;
+  }
+  document.body.classList.remove("is-memo-modal-open");
+  if (settingsResetConfirmResolver) {
+    settingsResetConfirmResolver(decision);
+    settingsResetConfirmResolver = null;
+  }
+}
+
+function clearAllPersistedInputData() {
+  BACKUP_STORAGE_KEYS.forEach((key) => {
+    localStorage.removeItem(key);
+  });
+}
+
+function resetAppUiStateToInitial() {
+  recurringEditingId = null;
+  transactionEditingId = null;
+  lifeEventEditingId = null;
+  basicEditingPlanId = null;
+  activeMemoDraft = null;
+  closeMemoModal();
+
+  const initialYearMonth = resolveInitialYearMonthState(todayISO().slice(0, 7));
+  sharedYearMonthState = { ...initialYearMonth };
+  sharedAverageViewState = { averageMode: "month" };
+  dashboardAssetGrowthMetric = "endingBalance";
+  activeDashboardAssetGraphTab = "current-assets";
+  activeAssetMainTab = "formation";
+  activeIncomeMainTab = "expense-balance";
+  activePrimaryMainTab = "input";
+  activeCashflowSubTab = "income-settings";
+  activeInputMainTab = "basic";
+  Object.keys(activeInputSubTabs).forEach((groupName) => {
+    activeInputSubTabs[groupName] = "register";
+  });
+
+  resetProfileFormFields();
+  resetRecurringFormFields();
+  resetLifeEventFormFields();
+  resetTransactionFormFields({ date: todayISO() });
+}
+
+function showSettingsResetToast() {
+  if (!settingsResetToast) return;
+  settingsResetToast.hidden = false;
+  if (settingsResetToastTimerId) {
+    window.clearTimeout(settingsResetToastTimerId);
+  }
+  settingsResetToastTimerId = window.setTimeout(() => {
+    settingsResetToast.hidden = true;
+    settingsResetToastTimerId = 0;
+  }, 2600);
+}
+
+async function resetAllSettingsToInitialState() {
+  if (settingsResetInProgress) return;
+  settingsResetInProgress = true;
+  if (profileBasicResetButton) {
+    profileBasicResetButton.disabled = true;
+  }
+
+  try {
+    const shouldReset = await openSettingsResetConfirmModal();
+    if (!shouldReset) return;
+
+    clearAllPersistedInputData();
+    resetAppUiStateToInitial();
+    render();
+    setPrimaryMainTab("input");
+    setInputMainTab("basic");
+    setInputSubTab("basic", "register");
+    setInputSubTab("asset-formation", "register", { keepBasicEditingState: true });
+    setInputSubTab("recurring", "register", { keepBasicEditingState: true });
+    setInputSubTab("life", "register", { keepBasicEditingState: true });
+    setInputSubTab("monthly", "register", { keepBasicEditingState: true });
+    setAssetMainTab("formation");
+    setIncomeMainTab("expense-balance");
+    setCashflowSubTab("income-settings");
+    setDashboardAssetGraphTab("current-assets");
+    updateDashboardAssetGrowthMetricToggleUI();
+    scrollPrimaryMainTabToTop("input", { behavior: "auto" });
+    showSettingsResetToast();
+  } finally {
+    settingsResetInProgress = false;
+    if (profileBasicResetButton) {
+      profileBasicResetButton.disabled = false;
+    }
+  }
 }
 
 function normalizeRecurringExpense(item) {
@@ -7606,6 +7720,7 @@ function init() {
 
   profileForm.addEventListener("submit", (event) => event.preventDefault());
   profileBasicSaveButton?.addEventListener("click", saveBasicProfileSettings);
+  profileBasicResetButton?.addEventListener("click", resetAllSettingsToInitialState);
   profileSubmitButton?.addEventListener("click", () => saveAssetFormationSettings(planEditorList || assetPlanEditorList));
   profileCancelButton?.addEventListener("click", cancelProfileEdit);
   assetProfileSubmitButton?.addEventListener("click", () => saveAssetFormationSettings(assetPlanEditorList || planEditorList));
@@ -7616,6 +7731,21 @@ function init() {
     const input = event.target;
     if (!(input instanceof HTMLInputElement)) return;
     importBackupFile(input.files?.[0]);
+  });
+  settingsResetConfirmCloseControls.forEach((node) => {
+    node.addEventListener("click", () => resolveSettingsResetConfirm(false));
+  });
+  settingsResetCancelButton?.addEventListener("click", () => resolveSettingsResetConfirm(false));
+  settingsResetConfirmButton?.addEventListener("click", () => resolveSettingsResetConfirm(true));
+  settingsResetConfirmModal?.addEventListener("click", (event) => {
+    if (event.target === settingsResetConfirmModal) {
+      resolveSettingsResetConfirm(false);
+    }
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && settingsResetConfirmResolver) {
+      resolveSettingsResetConfirm(false);
+    }
   });
   recurringForm.addEventListener("submit", addRecurringExpense);
   recurringCancelButton?.addEventListener("click", cancelRecurringExpenseEdit);
