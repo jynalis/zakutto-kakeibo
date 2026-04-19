@@ -3584,14 +3584,34 @@ function calculateNiceYAxisStep(range) {
   return Math.max(niceFraction * exponent, 1000000);
 }
 
+function buildDashboardAssetGrowthPoints(cashflowRows, metricKey, targetAge = DASHBOARD_ASSET_GROWTH_TARGET_AGE) {
+  const normalizedTargetAge = Number(targetAge);
+  const rows = (Array.isArray(cashflowRows) ? cashflowRows : [])
+    .filter((row) => Number.isFinite(row?.year) && Number.isFinite(row?.age))
+    .filter((row) => !Number.isFinite(normalizedTargetAge) || row.age <= normalizedTargetAge)
+    .sort((a, b) => (a.year - b.year) || (a.age - b.age));
+
+  if (rows.length === 0) return [];
+
+  return rows.map((row) => {
+    const amount = Number(row?.[metricKey]);
+    return {
+      year: row.year,
+      age: row.age,
+      amount: Number.isFinite(amount) ? amount : 0,
+    };
+  });
+}
+
 function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBalance") {
   if (!dashboardAssetFormationChart) return;
   dashboardAssetFormationChart.innerHTML = "";
   const metric = DASHBOARD_ASSET_GROWTH_METRICS[metricKey] || DASHBOARD_ASSET_GROWTH_METRICS.endingBalance;
-  const points = (Array.isArray(cashflowRows) ? cashflowRows : [])
-    .map((row) => ({ year: row.year, age: row.age, amount: Number(row?.[metricKey]) }))
-    .filter((row) => Number.isFinite(row.year) && Number.isFinite(row.age) && Number.isFinite(row.amount))
-    .sort((a, b) => (a.year - b.year) || (a.age - b.age));
+  const points = buildDashboardAssetGrowthPoints(
+    cashflowRows,
+    metricKey,
+    DASHBOARD_ASSET_GROWTH_TARGET_AGE,
+  );
   const labels = points.map((item) => item.year);
   const amounts = points.map((item) => item.amount);
 
@@ -3609,7 +3629,7 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
   const margin = { top: 24, right: 24, bottom: 56 };
   const fixedAxisWidth = 84;
   const visibleYearCount = labels.length;
-  const minScrollableWidth = visibleYearCount * YEAR_SLOT_WIDTH_PX;
+  const minScrollableWidth = (visibleYearCount + 1) * YEAR_SLOT_WIDTH_PX;
   const plotWidth = minScrollableWidth;
   const scrollChartWidth = plotWidth + margin.right;
   const plotHeight = chartHeight - margin.top - margin.bottom;
