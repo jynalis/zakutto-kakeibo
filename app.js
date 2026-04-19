@@ -255,6 +255,7 @@ const TARGET_AGE_PRIMARY = 60;
 const TARGET_AGE_SECONDARY = 65;
 const DASHBOARD_ASSET_OUTLOOK_TARGET_AGE = 64;
 const CASHFLOW_TABLE_TARGET_AGE = 100;
+const DASHBOARD_ASSET_GROWTH_TARGET_AGE = CASHFLOW_TABLE_TARGET_AGE;
 const ASSET_EVALUATION_REFERENCE_MODE = "year-end";
 const RETIREMENT_REFERENCE_AGE = TARGET_AGE_PRIMARY;
 const RETIREMENT_REFERENCE_DAY_OFFSET = 2;
@@ -3605,7 +3606,7 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
   const BAR_WIDTH_PX = 24;
   const YEAR_SLOT_WIDTH_PX = 52;
   const chartHeight = 280;
-  const margin = { top: 24, right: 12, bottom: 56 };
+  const margin = { top: 24, right: 24, bottom: 56 };
   const fixedAxisWidth = 84;
   const visibleYearCount = labels.length;
   const minScrollableWidth = visibleYearCount * YEAR_SLOT_WIDTH_PX;
@@ -3849,7 +3850,7 @@ function renderDashboard({
     recurringExpenses,
     lifeEvents,
     assumptions,
-    targetAge: TARGET_AGE_SECONDARY,
+    targetAge: DASHBOARD_ASSET_GROWTH_TARGET_AGE,
   });
   dashboardIncomeTotal.textContent = yen.format(summary.income);
   dashboardExpenseTotal.textContent = yen.format(summary.expense);
