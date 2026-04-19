@@ -4660,28 +4660,40 @@ function buildAnnualAssetSnapshotsByYear({
   if (!Array.isArray(settings?.plans) || settings.plans.length === 0) return {};
   if (!parseBirthDate(settings?.birthDate)) return {};
   if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return {};
+  if (!parseMonth(startMonth) || !parseMonth(referenceMonth)) return {};
+  if (compareMonth(startMonth, referenceMonth) > 0) return {};
 
   const snapshotsByYear = {};
   const normalizedPlans = settings.plans.map((plan) => normalizePlan(plan));
-  const annualRowsByPlan = normalizedPlans.map((plan) => buildPlanAnnualBalanceRows(plan, {
-    startYear,
-    endYear,
-    startMonth,
-    referenceMonth,
-  }));
+  const monthlyRowsByPlan = normalizedPlans.map((plan) => (
+    simulatePlanMonthlyBalanceTrajectory(plan, settings.birthDate, {
+      startMonth,
+      endMonth: referenceMonth,
+      includeContribution: true,
+      includeInstallmentWithdrawal: true,
+      includeLumpSumWithdrawal: true,
+      includeMonthlyReturn: true,
+    }).rows
+  ));
 
   for (let year = startYear; year <= endYear; year += 1) {
     const age = resolveAgeAtYear(settings.birthDate, year);
     if (!Number.isFinite(age) || age > targetAge) continue;
 
-    const annualRows = annualRowsByPlan
-      .map((rows) => rows.find((row) => row.year === year))
-      .filter(Boolean);
-
-    const totalWithdrawalForYear = annualRows.reduce((sum, row) => (
-      sum + row.annualLumpSumWithdrawal + row.annualInstallmentWithdrawal
-    ), 0);
-    const totalEndingBalanceForYear = annualRows.reduce((sum, row) => sum + row.yearEndBalance, 0);
+    const totalWithdrawalForYear = monthlyRowsByPlan.reduce((sum, rows) => {
+      const yearRows = rows.filter((row) => parseMonth(row.month)?.year === year);
+      if (yearRows.length === 0) return sum;
+      const yearWithdrawal = yearRows.reduce((yearlySum, row) => (
+        yearlySum + row.installmentWithdrawal + row.lumpSumWithdrawal
+      ), 0);
+      return sum + yearWithdrawal;
+    }, 0);
+    const totalEndingBalanceForYear = monthlyRowsByPlan.reduce((sum, rows) => {
+      const yearRows = rows.filter((row) => parseMonth(row.month)?.year === year);
+      if (yearRows.length === 0) return sum;
+      const yearEndRow = yearRows[yearRows.length - 1];
+      return sum + yearEndRow.endingBalance;
+    }, 0);
 
     snapshotsByYear[year] = {
       withdrawal: Math.round(totalWithdrawalForYear),

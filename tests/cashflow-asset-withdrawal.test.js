@@ -168,8 +168,8 @@ assert.strictEqual(typeof buildAssetOutlookAtAge, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(transfers[2025], 24000);
-  assert.strictEqual(transfers[2026], 47040);
+  assert.strictEqual(transfers[2025], 23801);
+  assert.strictEqual(transfers[2026], 46195);
 })();
 
 (function testInstallmentRateModeReadsInstallmentKeys() {
@@ -198,8 +198,8 @@ assert.strictEqual(typeof buildAssetOutlookAtAge, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(transfers[2025], 50000);
-  assert.strictEqual(transfers[2026], 47500);
+  assert.strictEqual(transfers[2025], 48870);
+  assert.strictEqual(transfers[2026], 46482);
 })();
 
 (function testLumpSumRateModeReadsLumpSumDateAndCapsAtBalance() {
@@ -601,9 +601,9 @@ assert.strictEqual(typeof buildAssetOutlookAtAge, 'function');
     targetAge: 100,
   });
 
-  assert.strictEqual(transfers[2024], 200000);
-  assert.strictEqual(transfers[2025], 99000);
-  assert.strictEqual(transfers[2026], 98010);
+  assert.strictEqual(transfers[2024], 199766);
+  assert.strictEqual(transfers[2025], 99258);
+  assert.strictEqual(transfers[2026], 98752);
 })();
 
 (function testLumpSumAndInstallmentAreCombinedWithAvailableBalanceCap() {
@@ -702,8 +702,8 @@ assert.strictEqual(typeof buildAssetOutlookAtAge, 'function');
   });
 
   assert.strictEqual(transfers[2024], 0);
-  assert.strictEqual(transfers[2025], 50000);
-  assert.strictEqual(transfers[2026], 45000);
+  assert.strictEqual(transfers[2025], 47771);
+  assert.strictEqual(transfers[2026], 43207);
 })();
 
 (function testSuggestedWithdrawMonthUsesRetirementReferenceMonth() {
