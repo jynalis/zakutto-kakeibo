@@ -61,12 +61,14 @@ const buildCashflowRowsUntilAge = sandbox.buildCashflowRowsUntilAge;
 const calculateSuggestedWithdrawMonth = sandbox.calculateSuggestedWithdrawMonth;
 const projectPlanAssetDetails = sandbox.projectPlanAssetDetails;
 const calculateFinancialAssetTotalAtMonth = sandbox.calculateFinancialAssetTotalAtMonth;
+const buildAssetOutlookAtAge = sandbox.buildAssetOutlookAtAge;
 assert.strictEqual(typeof buildAnnualAssetWithdrawalTransfersByYear, 'function');
 assert.strictEqual(typeof buildAnnualAssetFormationBalancesByYear, 'function');
 assert.strictEqual(typeof buildCashflowRowsUntilAge, 'function');
 assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
 assert.strictEqual(typeof projectPlanAssetDetails, 'function');
 assert.strictEqual(typeof calculateFinancialAssetTotalAtMonth, 'function');
+assert.strictEqual(typeof buildAssetOutlookAtAge, 'function');
 
 (function testAmountAndUnsetModes() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
@@ -779,6 +781,48 @@ assert.strictEqual(typeof calculateFinancialAssetTotalAtMonth, 'function');
 
   assert.strictEqual(highCurrentValueProjection.amount, 840000);
   assert.strictEqual(zeroCurrentValueProjection.amount, 840000);
+})();
+
+(function testAssetOutlookAtAgeUsesSamePostWithdrawalBalanceAsCashflowRows() {
+  const baseInput = {
+    settings: {
+      birthDate: '1990-01-01',
+      entryStartMonth: '2025-01',
+      plans: [
+        {
+          id: 'installment-sync',
+          type: 'iDeCo',
+          expectedReturn: 0,
+          currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          useInstallment: true,
+          installmentStartDate: '2025-01',
+          installmentMode: 'amount',
+          installmentAmount: 100000,
+        },
+      ],
+    },
+    transactions: [],
+    recurringExpenses: [],
+    lifeEvents: [],
+    assumptions: { salaryGrowthRateBefore60: 0, inflationRate: 0 },
+  };
+
+  const targetAge = 37; // 1990-01-01 -> reference year 2027
+  const cashflowRows = buildCashflowRowsUntilAge({ ...baseInput, targetAge });
+  const cashflowRow = cashflowRows[cashflowRows.length - 1];
+  assert.ok(cashflowRow, 'cashflow row should exist');
+
+  const outlook = buildAssetOutlookAtAge({
+    ...baseInput,
+    targetAge,
+  });
+  const contractTotal = outlook.planBalancesAtAge.reduce((sum, plan) => sum + plan.projectedAmount, 0);
+
+  assert.strictEqual(contractTotal, cashflowRow.assetFormationBalance);
+  assert.strictEqual(outlook.totalAtAge, cashflowRow.assetFormationBalance);
 })();
 
 (function testMonthlyFinancialAssetProjectionAppliesInstallmentWithdrawalAndStopsContribution() {
