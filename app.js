@@ -1252,10 +1252,13 @@ function importBackupFile(file) {
 
 function openSettingsResetConfirmModal() {
   if (!settingsResetConfirmModal) {
-    return Promise.resolve(window.confirm("保存済みの入力内容を初期状態に戻します。よろしいですか？"));
+    return Promise.resolve(window.confirm("記入開始年月・生年月日を含む、保存済みの入力内容をすべて削除します。よろしいですか？"));
+  }
+  if (settingsResetConfirmResolver) {
+    resolveSettingsResetConfirm(false);
   }
   settingsResetConfirmModal.hidden = false;
-  document.body.classList.add("is-memo-modal-open");
+  document.body.classList.add("is-settings-reset-modal-open");
   return new Promise((resolve) => {
     settingsResetConfirmResolver = resolve;
     settingsResetConfirmButton?.focus();
@@ -1266,7 +1269,7 @@ function resolveSettingsResetConfirm(decision) {
   if (settingsResetConfirmModal) {
     settingsResetConfirmModal.hidden = true;
   }
-  document.body.classList.remove("is-memo-modal-open");
+  document.body.classList.remove("is-settings-reset-modal-open");
   if (settingsResetConfirmResolver) {
     settingsResetConfirmResolver(decision);
     settingsResetConfirmResolver = null;
@@ -1348,6 +1351,7 @@ async function resetAllSettingsToInitialState() {
     scrollPrimaryMainTabToTop("input", { behavior: "auto" });
     showSettingsResetToast();
   } finally {
+    resolveSettingsResetConfirm(false);
     settingsResetInProgress = false;
     if (profileBasicResetButton) {
       profileBasicResetButton.disabled = false;
@@ -7757,6 +7761,7 @@ function init() {
   syncRecurringDayOptions();
   syncLifeEventCategoryOptions();
   setupMemoCompactInputs();
+  resolveSettingsResetConfirm(false);
   setTransactionFormMode(false);
   resetRecurringFormFields();
   resetLifeEventFormFields();

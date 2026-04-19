@@ -332,7 +332,9 @@
                 </section>
                 <div class="full profile-form-actions profile-basic-settings-actions">
                   <button type="button" id="profile-basic-save-button" class="profile-save-settings-button">設定を保存</button>
-                  <button type="button" id="profile-basic-reset-button" class="profile-reset-settings-button">設定をリセット</button>
+                </div>
+                <div class="full profile-form-actions profile-danger-actions">
+                  <button type="button" id="profile-basic-reset-button" class="profile-reset-settings-button">入力内容を全削除</button>
                 </div>
                 <section class="full profile-form-section profile-backup-section" aria-labelledby="profile-backup-heading">
                   <h3 id="profile-backup-heading" class="profile-form-section-heading">JSON</h3>
@@ -718,17 +720,17 @@
     <div id="settings-reset-confirm-modal" class="settings-reset-confirm-modal" hidden>
       <div class="settings-reset-confirm-backdrop" data-settings-reset-close></div>
       <section class="settings-reset-confirm-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-reset-confirm-title">
-        <h2 id="settings-reset-confirm-title" class="settings-reset-confirm-title">確認</h2>
-        <p class="settings-reset-confirm-message">保存済みの入力内容を初期状態に戻します。よろしいですか？</p>
+        <h2 id="settings-reset-confirm-title" class="settings-reset-confirm-title">入力内容を全削除</h2>
+        <p class="settings-reset-confirm-message">記入開始年月・生年月日を含む、保存済みの入力内容をすべて削除します。よろしいですか？</p>
         <div class="settings-reset-confirm-actions">
           <button type="button" id="settings-reset-cancel-button" class="ghost" data-settings-reset-close>キャンセル</button>
-          <button type="button" id="settings-reset-confirm-button">リセットする</button>
+          <button type="button" id="settings-reset-confirm-button" class="danger">全削除する</button>
         </div>
       </section>
     </div>
 
     <p id="settings-reset-toast" class="settings-reset-toast" role="status" aria-live="polite" hidden>
-      設定を初期状態に戻しました
+      入力内容を全削除しました
     </p>
 
     <template id="transaction-item-template">
