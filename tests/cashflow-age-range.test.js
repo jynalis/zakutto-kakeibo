@@ -57,10 +57,12 @@ vm.runInContext(source, sandbox);
 
 const buildCashflowRows = sandbox.buildCashflowRows;
 const buildCashflowRowsUntilAge = sandbox.buildCashflowRowsUntilAge;
+const buildDashboardAssetGrowthPoints = sandbox.buildDashboardAssetGrowthPoints;
 const calculateAssetFormationBalanceAtAgeYearEnd = sandbox.calculateAssetFormationBalanceAtAgeYearEnd;
 const simulatePlanMonthlyBalanceTrajectory = sandbox.simulatePlanMonthlyBalanceTrajectory;
 assert.strictEqual(typeof buildCashflowRows, 'function');
 assert.strictEqual(typeof buildCashflowRowsUntilAge, 'function');
+assert.strictEqual(typeof buildDashboardAssetGrowthPoints, 'function');
 assert.strictEqual(typeof calculateAssetFormationBalanceAtAgeYearEnd, 'function');
 assert.strictEqual(typeof simulatePlanMonthlyBalanceTrajectory, 'function');
 
@@ -169,6 +171,31 @@ assert.strictEqual(typeof simulatePlanMonthlyBalanceTrajectory, 'function');
   });
   const expectedYearEnd = Math.round(simulation.endingBalance);
   assert.strictEqual(row2024.assetFormationBalance, expectedYearEnd);
+})();
+
+(function testDashboardAssetGrowthPointsUseCommonYearRangeAndAge100End() {
+  const baseRows = [
+    { year: 2088, age: 98, endingBalance: 100, assetFormationBalance: 120, financialAssetTotal: 220 },
+    { year: 2089, age: 99, endingBalance: 110, assetFormationBalance: 130, financialAssetTotal: 240 },
+    { year: 2090, age: 100, endingBalance: 120, assetFormationBalance: Number.NaN, financialAssetTotal: 260 },
+  ];
+
+  const endingPoints = buildDashboardAssetGrowthPoints(baseRows, 'endingBalance', 100);
+  const formationPoints = buildDashboardAssetGrowthPoints(baseRows, 'assetFormationBalance', 100);
+  const financialPoints = buildDashboardAssetGrowthPoints(baseRows, 'financialAssetTotal', 100);
+
+  assert.strictEqual(endingPoints.at(-1).age, 100);
+  assert.strictEqual(formationPoints.at(-1).age, 100);
+  assert.strictEqual(financialPoints.at(-1).age, 100);
+  assert.strictEqual(formationPoints.at(-1).amount, 0);
+  assert.deepStrictEqual(
+    endingPoints.map((point) => point.year),
+    formationPoints.map((point) => point.year)
+  );
+  assert.deepStrictEqual(
+    endingPoints.map((point) => point.year),
+    financialPoints.map((point) => point.year)
+  );
 })();
 
 console.log('cashflow age range tests passed');
