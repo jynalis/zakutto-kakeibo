@@ -3625,11 +3625,12 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
 
   const BAR_WIDTH_PX = 24;
   const YEAR_SLOT_WIDTH_PX = 52;
+  const xAxisPadding = { left: 0, right: 0 };
   const chartHeight = 280;
-  const margin = { top: 24, right: 24, bottom: 56 };
+  const margin = { top: 24, right: 0, bottom: 56 };
   const fixedAxisWidth = 84;
   const visibleYearCount = labels.length;
-  const minScrollableWidth = (visibleYearCount + 1) * YEAR_SLOT_WIDTH_PX;
+  const minScrollableWidth = (visibleYearCount * YEAR_SLOT_WIDTH_PX) + xAxisPadding.left + xAxisPadding.right;
   const plotWidth = minScrollableWidth;
   const scrollChartWidth = plotWidth + margin.right;
   const plotHeight = chartHeight - margin.top - margin.bottom;
@@ -3737,7 +3738,7 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
 
   points.forEach((point, index) => {
     const amount = point.amount;
-    const xCenter = slotWidth * index + slotWidth / 2;
+    const xCenter = xAxisPadding.left + (slotWidth * index) + slotWidth / 2;
     const zeroY = yPosition(0);
     const valueY = yPosition(amount);
     const barHeight = Math.max(1, Math.abs(zeroY - valueY));
