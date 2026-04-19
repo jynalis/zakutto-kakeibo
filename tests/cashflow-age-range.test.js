@@ -58,9 +58,11 @@ vm.runInContext(source, sandbox);
 const buildCashflowRows = sandbox.buildCashflowRows;
 const buildCashflowRowsUntilAge = sandbox.buildCashflowRowsUntilAge;
 const calculateAssetFormationBalanceAtAgeYearEnd = sandbox.calculateAssetFormationBalanceAtAgeYearEnd;
+const simulatePlanMonthlyBalanceTrajectory = sandbox.simulatePlanMonthlyBalanceTrajectory;
 assert.strictEqual(typeof buildCashflowRows, 'function');
 assert.strictEqual(typeof buildCashflowRowsUntilAge, 'function');
 assert.strictEqual(typeof calculateAssetFormationBalanceAtAgeYearEnd, 'function');
+assert.strictEqual(typeof simulatePlanMonthlyBalanceTrajectory, 'function');
 
 (function testCashflowRowsAreExtendedToAge100() {
   const settings = {
@@ -125,6 +127,48 @@ assert.strictEqual(typeof calculateAssetFormationBalanceAtAgeYearEnd, 'function'
 
   assert.ok(age65Row);
   assert.strictEqual(age65YearEnd, age65Row.assetFormationBalance);
+})();
+
+(function testCashflowAssetFormationUsesCommonMonthlySimulationYearEnd() {
+  const settings = {
+    birthDate: '1990-01-01',
+    entryStartMonth: '2024-01',
+    plans: [
+      {
+        id: 'plan-monthly-common-sync',
+        type: 'NISA',
+        expectedReturn: 12,
+        initialPrincipalAtStartMonth: 1000000,
+        monthlyContributions: [{ startMonth: '2024-01', amount: 100000 }],
+        lumpSums: [],
+      },
+    ],
+  };
+  const payload = {
+    settings,
+    transactions: [],
+    recurringExpenses: [],
+    lifeEvents: [],
+    assumptions: {
+      salaryGrowthRateBefore60: 0,
+      inflationRate: 0,
+    },
+  };
+
+  const rows = buildCashflowRows(payload);
+  const row2024 = rows.find((row) => row.year === 2024);
+  assert.ok(row2024);
+
+  const simulation = simulatePlanMonthlyBalanceTrajectory(settings.plans[0], settings.birthDate, {
+    startMonth: '2024-01',
+    endMonth: '2024-12',
+    includeContribution: true,
+    includeInstallmentWithdrawal: true,
+    includeLumpSumWithdrawal: true,
+    includeMonthlyReturn: true,
+  });
+  const expectedYearEnd = Math.round(simulation.endingBalance);
+  assert.strictEqual(row2024.assetFormationBalance, expectedYearEnd);
 })();
 
 console.log('cashflow age range tests passed');
