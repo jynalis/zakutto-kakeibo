@@ -1848,6 +1848,7 @@ button.plan-card-trigger {
 
 .profile-reset-settings-button {
   min-height: 54px;
+  max-width: 520px;
   width: 100%;
   border: 1px solid #d8b6b6;
   background: #fff7f7;
@@ -1874,6 +1875,11 @@ button.plan-card-trigger {
 
 .profile-basic-settings-actions {
   margin-top: 14px;
+}
+
+.profile-danger-actions {
+  margin-top: 12px;
+  margin-bottom: 14px;
 }
 
 .profile-form-actions button {
@@ -3068,6 +3074,10 @@ button.ghost {
   padding: 20px;
 }
 
+.settings-reset-confirm-modal[hidden] {
+  display: none !important;
+}
+
 .settings-reset-confirm-backdrop {
   position: absolute;
   inset: 0;
@@ -3109,6 +3119,24 @@ button.ghost {
   min-height: 46px;
 }
 
+@media (max-width: 560px) {
+  .settings-reset-confirm-modal {
+    padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    align-items: end;
+  }
+
+  .settings-reset-confirm-sheet {
+    width: 100%;
+    max-height: min(86dvh, 540px);
+    overflow: auto;
+    padding: 16px;
+  }
+
+  .settings-reset-confirm-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .settings-reset-toast {
   position: fixed;
   left: 50%;
@@ -3126,7 +3154,8 @@ button.ghost {
   box-shadow: 0 8px 22px rgb(16 35 58 / 18%);
 }
 
-body.is-memo-modal-open {
+body.is-memo-modal-open,
+body.is-settings-reset-modal-open {
   overflow: hidden;
 }
 
