@@ -5858,6 +5858,7 @@ function setPrimaryMainTab(tabName = "dashboard") {
   }
 
   if (previousTab === "assets" && nextTab !== "assets") {
+    resetAssetFormationWithdrawalToggleUiState();
     setCashflowSubTab("income-settings");
   }
 
@@ -6049,6 +6050,44 @@ function createHistoryRow({ type, month = "", amount = "", onChange = null } = {
     notifyChange();
   });
   return row;
+}
+
+function resetPlanWithdrawalToggleState(planItem) {
+  if (!planItem) return;
+  const useLumpSumField = planItem.querySelector(".plan-use-lump-sum");
+  const useInstallmentField = planItem.querySelector(".plan-use-installment");
+  const useLumpSumButtons = Array.from(planItem.querySelectorAll("[data-use-lump-sum]"));
+  const useInstallmentButtons = Array.from(planItem.querySelectorAll("[data-use-installment]"));
+  const lumpSumFieldsWrap = planItem.querySelector(".plan-withdrawal-lump-fields");
+  const installmentFieldsWrap = planItem.querySelector(".plan-withdrawal-installment-fields");
+  if (useLumpSumField) useLumpSumField.value = "false";
+  if (useInstallmentField) useInstallmentField.value = "false";
+  useLumpSumButtons.forEach((button) => {
+    const isDisabledState = button.dataset.useLumpSum === "false";
+    button.classList.toggle("is-active", isDisabledState);
+    button.setAttribute("aria-pressed", isDisabledState ? "true" : "false");
+  });
+  useInstallmentButtons.forEach((button) => {
+    const isDisabledState = button.dataset.useInstallment === "false";
+    button.classList.toggle("is-active", isDisabledState);
+    button.setAttribute("aria-pressed", isDisabledState ? "true" : "false");
+  });
+  if (lumpSumFieldsWrap) {
+    lumpSumFieldsWrap.hidden = true;
+    lumpSumFieldsWrap.classList.add("is-hidden");
+  }
+  if (installmentFieldsWrap) {
+    installmentFieldsWrap.hidden = true;
+    installmentFieldsWrap.classList.add("is-hidden");
+  }
+}
+
+function resetAssetFormationWithdrawalToggleUiState() {
+  planEditorLists.forEach((editorList) => {
+    editorList.querySelectorAll(".plan-item").forEach((planItem) => {
+      resetPlanWithdrawalToggleState(planItem);
+    });
+  });
 }
 
 function createPlanBlock(plan = {}) {
@@ -6314,8 +6353,7 @@ function createPlanBlock(plan = {}) {
   wrap.classList.add("is-expanded");
   refreshPlanVisual();
   refreshAutoYield();
-  syncUseLumpSumFields();
-  syncUseInstallmentFields();
+  resetPlanWithdrawalToggleState(wrap);
   syncLumpSumModeFields();
   syncInstallmentModeFields();
 
