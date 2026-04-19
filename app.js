@@ -258,6 +258,7 @@ const DEFAULT_CASHFLOW_EXPENSE_SETTINGS = {
 const TARGET_AGE_PRIMARY = 60;
 const TARGET_AGE_SECONDARY = 65;
 const CASHFLOW_TABLE_TARGET_AGE = 100;
+const ASSET_EVALUATION_REFERENCE_MODE = "year-end";
 const RETIREMENT_REFERENCE_AGE = TARGET_AGE_PRIMARY;
 const RETIREMENT_REFERENCE_DAY_OFFSET = 2;
 
@@ -5119,6 +5120,15 @@ function resolveReferenceMonthByAge(birthDate, targetAge = RETIREMENT_REFERENCE_
   return cutoffDate ? formatMonth(cutoffDate.getFullYear(), cutoffDate.getMonth()) : null;
 }
 
+function resolveAssetEvaluationReferenceMonthByAge(birthDate, targetAge = TARGET_AGE_SECONDARY) {
+  const referenceYear = resolveReferenceYearByAge(birthDate, targetAge);
+  if (!Number.isInteger(referenceYear)) return null;
+  if (ASSET_EVALUATION_REFERENCE_MODE === "year-end" && targetAge === TARGET_AGE_SECONDARY) {
+    return formatMonth(referenceYear, 11);
+  }
+  return resolveReferenceMonthByAge(birthDate, targetAge);
+}
+
 function resolveRetirementReferenceDate(birthDate) {
   return resolveReferenceDateByAge(birthDate, TARGET_AGE_PRIMARY);
 }
@@ -5428,13 +5438,10 @@ function buildAssetOutlookAtAge({
   lifeEvents,
   assumptions,
   targetAge,
-  useYearEndReference = false,
 }) {
   const targetDate = resolveTargetAgeDate(settings.birthDate, targetAge);
   const referenceYear = targetDate ? targetDate.getFullYear() : resolveReferenceYearByAge(settings.birthDate, targetAge);
-  const targetMonth = useYearEndReference && Number.isInteger(referenceYear)
-    ? formatMonth(referenceYear, 11)
-    : resolveReferenceMonthByAge(settings.birthDate, targetAge);
+  const targetMonth = resolveAssetEvaluationReferenceMonthByAge(settings.birthDate, targetAge);
   const projectionRows = buildAnnualAssetProjectionRowsAtAge({
     settings,
     transactions,
@@ -5455,7 +5462,9 @@ function buildAssetOutlookAtAge({
     isHeldUntilTargetAge: isPlanHeldUntilAge(row.plan, targetAge, settings.birthDate),
   }));
   const planBalancesAtAge = plansAtAge.filter((plan) => plan.projectedAmount > 0);
-  const totalAtAge = useYearEndReference
+  const shouldUseYearEndReference = ASSET_EVALUATION_REFERENCE_MODE === "year-end"
+    && targetAge === TARGET_AGE_SECONDARY;
+  const totalAtAge = shouldUseYearEndReference
     ? calculateAssetFormationBalanceAtAgeYearEnd({
       settings,
       transactions,
@@ -5562,7 +5571,6 @@ function renderAssetForecast(settings) {
     lifeEvents,
     assumptions,
     targetAge: TARGET_AGE_SECONDARY,
-    useYearEndReference: true,
   });
 
   const projectedRowsAt65 = secondaryAssetOutlook.plansAtAge;
