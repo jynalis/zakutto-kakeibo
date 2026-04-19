@@ -1791,6 +1791,26 @@ button.plan-card-trigger {
   width: 100%;
 }
 
+.profile-reset-settings-button {
+  min-height: 54px;
+  width: 100%;
+  border: 1px solid #d8b6b6;
+  background: #fff7f7;
+  color: #9a3636;
+  box-shadow: 0 6px 12px rgb(80 20 20 / 10%);
+}
+
+.profile-reset-settings-button:hover {
+  filter: none;
+  background: #ffefef;
+  box-shadow: 0 8px 14px rgb(80 20 20 / 14%);
+}
+
+.profile-reset-settings-button:active {
+  filter: none;
+  background: #ffe8e8;
+}
+
 .profile-form-actions {
   display: flex;
   gap: 10px;
@@ -2982,6 +3002,73 @@ button.ghost {
 
 .memo-modal-actions > button {
   flex: 1;
+}
+
+.settings-reset-confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.settings-reset-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(4 16 32 / 42%);
+}
+
+.settings-reset-confirm-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  border: 1px solid #d1dce9;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 22px 44px rgb(12 24 42 / 24%);
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.settings-reset-confirm-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #153454;
+}
+
+.settings-reset-confirm-message {
+  font-size: 0.95rem;
+  color: #2f4258;
+  line-height: 1.6;
+}
+
+.settings-reset-confirm-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-reset-confirm-actions > button {
+  min-height: 46px;
+}
+
+.settings-reset-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--primary-main-tabbar-height) + 20px);
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  margin: 0;
+  border: 1px solid #c1d3e5;
+  background: rgb(255 255 255 / 96%);
+  color: #23415f;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 10px 16px;
+  box-shadow: 0 8px 22px rgb(16 35 58 / 18%);
 }
 
 body.is-memo-modal-open {
