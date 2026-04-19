@@ -5387,10 +5387,6 @@ function createAssetOutlookPointLabel(age) {
   return `${createAgeLabel(age)}時点`;
 }
 
-function createAssetOutlookTotalLabel(age) {
-  return `${createAssetOutlookPointLabel(age)}の想定総資産額`;
-}
-
 function createAssetOutlookWithdrawTitle(age) {
   return `${createAgeLabel(age)}前に取崩す予定の資産`;
 }
@@ -5597,7 +5593,6 @@ function renderAssetForecast(settings) {
     asOfDate: currentAssetBaseDate,
   });
 
-  const totalAt65 = secondaryAssetOutlook.totalAtAge;
   const planBalancesAt65 = secondaryAssetOutlook.planBalancesAtAge;
   const contractEntriesAt65 = secondaryAssetOutlook.contractEntriesAtAge;
   const contractTotalAt65 = secondaryAssetOutlook.contractTotalAtAge;
@@ -5632,9 +5627,6 @@ function renderAssetForecast(settings) {
   assetForecast.innerHTML = `
     <section class="chart asset-composition asset-outlook">
       <p class="section-description">現在年齢: <strong>${currentAge}歳</strong> / ${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の一覧は、キャッシュフロー表の${createAgeLabel(TARGET_AGE_SECONDARY)}行（年末基準）と同じ計算条件で表示しています。</p>
-      <div class="asset-outlook-summary-grid">
-        <div class="asset-total asset-total-compact">${createAssetOutlookTotalLabel(TARGET_AGE_SECONDARY)}: <strong>${yen.format(contractTotalAt65 || totalAt65)}</strong></div>
-      </div>
       <h4>${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の想定資産額（契約別）</h4>
       <h4 class="asset-type-breakdown-heading">${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の想定資産額（種別別）</h4>
       ${typeTotalsHtml ? `<ul class="asset-list">${typeTotalsHtml}</ul>` : `<p class="chart-empty">${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の評価対象となる契約はありません。</p>`}
