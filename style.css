@@ -3071,7 +3071,10 @@ button.ghost {
   z-index: 2147483646;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: max(16px, env(safe-area-inset-top, 0px) + 12px)
+    max(16px, env(safe-area-inset-right, 0px) + 12px)
+    max(16px, env(safe-area-inset-bottom, 0px) + 12px)
+    max(16px, env(safe-area-inset-left, 0px) + 12px);
 }
 
 .settings-reset-confirm-modal[hidden] {
@@ -3088,6 +3091,8 @@ button.ghost {
   position: relative;
   z-index: 1;
   width: min(420px, 100%);
+  max-height: min(80dvh, 520px);
+  overflow: auto;
   border: 1px solid #d1dce9;
   border-radius: 14px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
@@ -3121,19 +3126,15 @@ button.ghost {
 
 @media (max-width: 560px) {
   .settings-reset-confirm-modal {
-    padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
-    align-items: end;
+    padding: max(12px, env(safe-area-inset-top, 0px) + 10px)
+      max(12px, env(safe-area-inset-right, 0px) + 10px)
+      max(12px, env(safe-area-inset-bottom, 0px) + 10px)
+      max(12px, env(safe-area-inset-left, 0px) + 10px);
   }
 
   .settings-reset-confirm-sheet {
     width: 100%;
-    max-height: min(86dvh, 540px);
-    overflow: auto;
     padding: 16px;
-  }
-
-  .settings-reset-confirm-actions {
-    grid-template-columns: 1fr;
   }
 }
 
