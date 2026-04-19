@@ -3315,6 +3315,25 @@ function calculateAssetFormationBalanceAtAge({
   return targetRow?.assetFormationBalance ?? 0;
 }
 
+function calculateAssetFormationBalanceAtAgeYearEnd({
+  settings,
+  transactions,
+  recurringExpenses,
+  lifeEvents,
+  assumptions,
+  targetAge = TARGET_AGE_SECONDARY,
+}) {
+  const rows = buildCashflowRows({
+    settings,
+    transactions,
+    recurringExpenses,
+    lifeEvents,
+    assumptions,
+  });
+  const targetRow = rows.find((row) => row.age === targetAge) || null;
+  return targetRow?.assetFormationBalance ?? 0;
+}
+
 function resolveAge60AssetFormationBalance({ settings, transactions, recurringExpenses, lifeEvents, assumptions }) {
   return calculateAssetFormationBalanceAtAge({
     settings,
@@ -3832,7 +3851,7 @@ function renderDashboard({
   dashboardIncomeTotal.textContent = yen.format(summary.income);
   dashboardExpenseTotal.textContent = yen.format(summary.expense);
   dashboardBalanceTotal.textContent = yen.format(summary.endingBalance);
-  const age65AssetFormationBalance = calculateAssetFormationBalanceAtAge({
+  const age65AssetFormationBalance = calculateAssetFormationBalanceAtAgeYearEnd({
     settings,
     transactions,
     recurringExpenses,
@@ -5409,9 +5428,13 @@ function buildAssetOutlookAtAge({
   lifeEvents,
   assumptions,
   targetAge,
+  useYearEndReference = false,
 }) {
-  const targetMonth = resolveReferenceMonthByAge(settings.birthDate, targetAge);
-  const referenceYear = resolveReferenceYearByAge(settings.birthDate, targetAge);
+  const targetDate = resolveTargetAgeDate(settings.birthDate, targetAge);
+  const referenceYear = targetDate ? targetDate.getFullYear() : resolveReferenceYearByAge(settings.birthDate, targetAge);
+  const targetMonth = useYearEndReference && Number.isInteger(referenceYear)
+    ? formatMonth(referenceYear, 11)
+    : resolveReferenceMonthByAge(settings.birthDate, targetAge);
   const projectionRows = buildAnnualAssetProjectionRowsAtAge({
     settings,
     transactions,
@@ -5432,14 +5455,23 @@ function buildAssetOutlookAtAge({
     isHeldUntilTargetAge: isPlanHeldUntilAge(row.plan, targetAge, settings.birthDate),
   }));
   const planBalancesAtAge = plansAtAge.filter((plan) => plan.projectedAmount > 0);
-  const totalAtAge = calculateAssetFormationBalanceAtAge({
-    settings,
-    transactions,
-    recurringExpenses,
-    lifeEvents,
-    assumptions,
-    targetAge,
-  });
+  const totalAtAge = useYearEndReference
+    ? calculateAssetFormationBalanceAtAgeYearEnd({
+      settings,
+      transactions,
+      recurringExpenses,
+      lifeEvents,
+      assumptions,
+      targetAge,
+    })
+    : calculateAssetFormationBalanceAtAge({
+      settings,
+      transactions,
+      recurringExpenses,
+      lifeEvents,
+      assumptions,
+      targetAge,
+    });
 
   return {
     targetAge,
@@ -5530,6 +5562,7 @@ function renderAssetForecast(settings) {
     lifeEvents,
     assumptions,
     targetAge: TARGET_AGE_SECONDARY,
+    useYearEndReference: true,
   });
 
   const projectedRowsAt65 = secondaryAssetOutlook.plansAtAge;
@@ -5585,7 +5618,7 @@ function renderAssetForecast(settings) {
 
   assetForecast.innerHTML = `
     <section class="chart asset-composition asset-outlook">
-      <p class="section-description">現在年齢: <strong>${currentAge}歳</strong> / ${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の一覧は、キャッシュフロー表の資産形成額と同じ計算条件で表示しています。</p>
+      <p class="section-description">現在年齢: <strong>${currentAge}歳</strong> / ${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の一覧は、キャッシュフロー表の${createAgeLabel(TARGET_AGE_SECONDARY)}行（年末基準）と同じ計算条件で表示しています。</p>
       <div class="asset-outlook-summary-grid">
         <div class="asset-total asset-total-compact">${createAssetOutlookTotalLabel(TARGET_AGE_SECONDARY)}: <strong>${yen.format(contractTotalAt65 || totalAt65)}</strong></div>
       </div>
