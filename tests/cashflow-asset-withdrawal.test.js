@@ -62,6 +62,7 @@ const calculateSuggestedWithdrawMonth = sandbox.calculateSuggestedWithdrawMonth;
 const projectPlanAssetDetails = sandbox.projectPlanAssetDetails;
 const calculateFinancialAssetTotalAtMonth = sandbox.calculateFinancialAssetTotalAtMonth;
 const buildAssetOutlookAtAge = sandbox.buildAssetOutlookAtAge;
+const calculateAssetFormationBalanceAtAgeYearEnd = sandbox.calculateAssetFormationBalanceAtAgeYearEnd;
 assert.strictEqual(typeof buildAnnualAssetWithdrawalTransfersByYear, 'function');
 assert.strictEqual(typeof buildAnnualAssetFormationBalancesByYear, 'function');
 assert.strictEqual(typeof buildCashflowRowsUntilAge, 'function');
@@ -69,6 +70,7 @@ assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
 assert.strictEqual(typeof projectPlanAssetDetails, 'function');
 assert.strictEqual(typeof calculateFinancialAssetTotalAtMonth, 'function');
 assert.strictEqual(typeof buildAssetOutlookAtAge, 'function');
+assert.strictEqual(typeof calculateAssetFormationBalanceAtAgeYearEnd, 'function');
 
 (function testAmountAndUnsetModes() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
@@ -293,6 +295,72 @@ assert.strictEqual(typeof buildAssetOutlookAtAge, 'function');
   assert.strictEqual(row2025.assetFormationBalance, 900000);
   assert.strictEqual(row2026.annualAssetWithdrawalTransfer, 100000);
   assert.strictEqual(row2026.assetFormationBalance, 800000);
+})();
+
+(function testAge65ContractListAndDonutTotalMatchCashflowYearEndWithMonthlyWithdrawTiming() {
+  const settings = {
+    birthDate: '1990-01-01',
+    entryStartMonth: '2025-01',
+    plans: [
+      {
+        id: 'age65-sync-plan',
+        type: 'iDeCo',
+        name: '積立A',
+        expectedReturn: 5,
+        currentValue: 1000000,
+        initialPrincipalAtStartMonth: 1000000,
+        monthlyContributions: [{ startMonth: '2025-01', amount: 50000 }],
+        lumpSums: [{ month: '2026-06', amount: 300000 }],
+        useInstallment: true,
+        installmentStartDate: '2026-04',
+        installmentMode: 'amount',
+        installmentAmount: 240000,
+        useLumpSum: true,
+        lumpSumDate: '2026-11',
+        lumpSumMode: 'amount',
+        lumpSumAmount: 300000,
+      },
+    ],
+  };
+  const assumptions = { salaryGrowthRateBefore60: 0, inflationRate: 0 };
+  const transactions = [];
+  const recurringExpenses = [];
+  const lifeEvents = [];
+
+  const rows = buildCashflowRowsUntilAge({
+    settings,
+    transactions,
+    recurringExpenses,
+    lifeEvents,
+    assumptions,
+    targetAge: 100,
+  });
+  const age65Row = rows.find((row) => row.age === 65);
+  assert.ok(age65Row);
+
+  const outlook = buildAssetOutlookAtAge({
+    settings,
+    transactions,
+    recurringExpenses,
+    lifeEvents,
+    assumptions,
+    targetAge: 65,
+  });
+  const yearEndBalanceAt65 = calculateAssetFormationBalanceAtAgeYearEnd({
+    settings,
+    transactions,
+    recurringExpenses,
+    lifeEvents,
+    assumptions,
+    targetAge: 65,
+  });
+
+  assert.strictEqual(outlook.contractTotalAtAge, age65Row.assetFormationBalance);
+  assert.strictEqual(outlook.contractTotalAtAge, yearEndBalanceAt65);
+  assert.strictEqual(
+    outlook.contractEntriesAtAge.reduce((sum, [, amount]) => sum + amount, 0),
+    outlook.contractTotalAtAge
+  );
 })();
 
 (function testAssetFormationUsesExpectedReturnAndIgnoresCurrentAutoYield() {

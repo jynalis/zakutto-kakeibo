@@ -5541,14 +5541,11 @@ function buildAssetOutlookAtAge({
   assumptions,
   targetAge,
 }) {
-  const targetDate = resolveTargetAgeDate(settings.birthDate, targetAge);
-  const referenceYear = targetDate ? targetDate.getFullYear() : resolveReferenceYearByAge(settings.birthDate, targetAge);
   const targetMonth = resolveAssetEvaluationReferenceMonthByAge(settings.birthDate, targetAge);
-  const projectionRows = buildAnnualAssetProjectionRowsAtAge({
+  const projectionRows = buildContractProjectionRowsAtAge({
     settings,
     transactions,
     targetAge,
-    referenceYear,
     referenceMonth: targetMonth,
   });
   const plansAtAge = projectionRows.map((row) => ({
@@ -5583,6 +5580,14 @@ function buildAssetOutlookAtAge({
       assumptions,
       targetAge,
     });
+  const contractEntriesAtAge = adjustContractEntriesToTotal(
+    planBalancesAtAge.map((plan) => ([
+      `${plan.type}${plan.name ? `（${plan.name}）` : ""}`,
+      Math.max(Math.round(Number(plan.projectedAmount) || 0), 0),
+    ])),
+    Math.max(Math.round(Number(totalAtAge) || 0), 0)
+  );
+  const contractTotalAtAge = contractEntriesAtAge.reduce((sum, [, amount]) => sum + amount, 0);
 
   return {
     targetAge,
@@ -5590,40 +5595,78 @@ function buildAssetOutlookAtAge({
     plansAtAge,
     planBalancesAtAge,
     totalAtAge,
+    contractEntriesAtAge,
+    contractTotalAtAge,
   };
 }
 
-function buildAnnualAssetProjectionRowsAtAge({
+function adjustContractEntriesToTotal(entries, expectedTotal) {
+  if (!Array.isArray(entries)) return [];
+  const normalized = entries
+    .map(([label, amount]) => [label, Math.max(Math.round(Number(amount) || 0), 0)])
+    .filter(([, amount]) => amount > 0);
+  const targetTotal = Math.max(Math.round(Number(expectedTotal) || 0), 0);
+  if (normalized.length === 0) return normalized;
+  const currentTotal = normalized.reduce((sum, [, amount]) => sum + amount, 0);
+  const diff = targetTotal - currentTotal;
+  if (diff === 0) return normalized;
+
+  let adjustIndex = 0;
+  for (let i = 1; i < normalized.length; i += 1) {
+    if (normalized[i][1] > normalized[adjustIndex][1]) {
+      adjustIndex = i;
+    }
+  }
+  normalized[adjustIndex][1] = Math.max(normalized[adjustIndex][1] + diff, 0);
+  return normalized;
+}
+
+function buildContractProjectionRowsAtAge({
   settings,
   transactions,
   targetAge,
-  referenceYear,
   referenceMonth,
 }) {
   if (!Array.isArray(settings?.plans) || settings.plans.length === 0) return [];
   if (!parseBirthDate(settings?.birthDate)) return [];
-  if (!Number.isInteger(referenceYear) || !parseMonth(referenceMonth)) return [];
+  if (!parseMonth(referenceMonth)) return [];
 
-  const cashflowStartMonth = resolveEntryStartMonth(settings, transactions || []);
-  const parsedStartMonth = parseMonth(cashflowStartMonth);
-  if (!parsedStartMonth) return [];
-  if (parsedStartMonth.year > referenceYear) return [];
+  const referenceYear = resolveReferenceYearByAge(settings.birthDate, targetAge);
+  if (!Number.isInteger(referenceYear)) return [];
+  const projectionRange = resolveCashflowProjectionRange({
+    settings,
+    transactions,
+    targetAge,
+  });
+  if (!projectionRange) return [];
+  const cashflowStartMonth = projectionRange.cashflowStartMonth;
+  if (!parseMonth(cashflowStartMonth) || compareMonth(cashflowStartMonth, referenceMonth) > 0) return [];
 
   const normalizedPlans = settings.plans.map((plan) => normalizePlan(plan));
   return normalizedPlans.map((plan) => {
-    const annualRows = buildPlanAnnualBalanceRows(plan, {
-      startYear: parsedStartMonth.year,
-      endYear: referenceYear,
+    const simulationRows = simulatePlanMonthlyBalanceTrajectory(plan, settings.birthDate, {
       startMonth: cashflowStartMonth,
-      referenceMonth,
+      endMonth: referenceMonth,
+      includeContribution: true,
+      includeInstallmentWithdrawal: true,
+      includeLumpSumWithdrawal: true,
+      includeMonthlyReturn: true,
     });
-    const targetRow = annualRows.find((row) => row.year === referenceYear)
-      || annualRows[annualRows.length - 1]
-      || null;
-    const projectedAmount = Math.max(Number(targetRow?.yearEndBalance) || 0, 0);
-    const annualLumpSumWithdrawal = Math.max(Number(targetRow?.annualLumpSumWithdrawal) || 0, 0);
-    const annualInstallmentWithdrawal = Math.max(Number(targetRow?.annualInstallmentWithdrawal) || 0, 0);
-    const annualReturn = Number(targetRow?.annualReturn) || 0;
+    const targetYearRows = simulationRows.rows.filter((row) => parseMonth(row.month)?.year === referenceYear);
+    const targetRow = targetYearRows[targetYearRows.length - 1] || null;
+    const projectedAmount = Math.max(Math.round(Number(targetRow?.endingBalance) || 0), 0);
+    const annualLumpSumWithdrawal = Math.max(Math.round(targetYearRows.reduce(
+      (sum, row) => sum + (Number(row.lumpSumWithdrawal) || 0),
+      0
+    )), 0);
+    const annualInstallmentWithdrawal = Math.max(Math.round(targetYearRows.reduce(
+      (sum, row) => sum + (Number(row.installmentWithdrawal) || 0),
+      0
+    )), 0);
+    const annualReturn = targetYearRows.reduce(
+      (sum, row) => sum + (Number(row.monthlyReturn) || 0),
+      0
+    );
     const age = resolveAgeAtYear(settings.birthDate, referenceYear);
     const isWithinTargetAge = Number.isFinite(age) && age <= targetAge;
 
@@ -5694,10 +5737,8 @@ function renderAssetForecast(settings) {
 
   const totalAt65 = secondaryAssetOutlook.totalAtAge;
   const planBalancesAt65 = secondaryAssetOutlook.planBalancesAtAge;
-  const contractEntriesAt65 = planBalancesAt65
-    .filter((plan) => plan.projectedAmount > 0)
-    .map((plan) => [`${plan.type}${plan.name ? `（${plan.name}）` : ""}`, plan.projectedAmount]);
-  const contractTotalAt65 = contractEntriesAt65.reduce((sum, [, amount]) => sum + amount, 0);
+  const contractEntriesAt65 = secondaryAssetOutlook.contractEntriesAtAge;
+  const contractTotalAt65 = secondaryAssetOutlook.contractTotalAtAge;
 
   const typeTotals = PLAN_TYPES.map((type) => {
     const amount = planBalancesAt65
