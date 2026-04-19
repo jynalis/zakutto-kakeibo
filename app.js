@@ -62,7 +62,6 @@ const profileEditStatusNodes = [basicEditStatus, assetBasicEditStatus].filter(Bo
 const basicRegisteredSummary = document.getElementById("basic-registered-summary");
 const basicRegisteredPlanCount = document.getElementById("basic-registered-plan-count");
 const assetForecast = document.getElementById("asset-forecast");
-const assetWithdrawForecast = document.getElementById("asset-withdraw-forecast");
 const recurringForm = document.getElementById("recurring-form");
 const recurringCategoryInput = document.getElementById("recurring-category");
 const recurringAmountInput = document.getElementById("recurring-amount");
@@ -109,10 +108,7 @@ const dashboardAssetGraphTabs = Array.from(document.querySelectorAll("[data-dash
 const dashboardAssetGraphPanels = Array.from(document.querySelectorAll("[data-dashboard-asset-graph-panel]"));
 const dashboardCurrentAssetForecast = document.getElementById("dashboard-current-asset-forecast");
 const dashboardAge65AssetForecast = document.getElementById("dashboard-age65-asset-forecast");
-const dashboardWithdrawAssetForecast = document.getElementById("dashboard-withdraw-asset-forecast");
 const dashboardRetirementCard = document.getElementById("dashboard-retirement-card");
-const dashboardAge65AssetsTab = document.getElementById("dashboard-tab-age65-assets");
-const dashboardAge65AssetsPanel = document.getElementById("dashboard-panel-age65-assets");
 const dashboardAssetGraphTabbar = document.querySelector(".dashboard-asset-graph-tabbar");
 const dashboardAssetFormationChart = document.getElementById("dashboard-asset-formation-chart");
 const assetGrowthMonthlyChip = document.getElementById("asset-growth-monthly-chip");
@@ -5387,10 +5383,6 @@ function createAssetOutlookPointLabel(age) {
   return `${createAgeLabel(age)}時点`;
 }
 
-function createAssetOutlookWithdrawTitle(age) {
-  return `${createAgeLabel(age)}前に取崩す予定の資産`;
-}
-
 function buildAssetOutlookAtAge({
   settings,
   transactions,
@@ -5542,21 +5534,17 @@ function buildContractProjectionRowsAtAge({
 }
 
 function renderAssetForecast(settings) {
-  if (!assetForecast || !dashboardCurrentAssetForecast || !dashboardAge65AssetForecast || !dashboardWithdrawAssetForecast) return;
+  if (!assetForecast || !dashboardCurrentAssetForecast || !dashboardAge65AssetForecast) return;
   const dashboardCurrentAssetContainer = document.createElement("div");
   assetForecast.innerHTML = "";
   dashboardCurrentAssetForecast.innerHTML = "";
   dashboardAge65AssetForecast.innerHTML = "";
-  dashboardWithdrawAssetForecast.innerHTML = "";
-  if (assetWithdrawForecast) assetWithdrawForecast.innerHTML = "";
   if (!settings.birthDate || settings.plans.length === 0) {
     const emptyMessage = '<p class="chart-empty">生年月日と積立設定を保存すると、現時点と65歳時点の資産試算が表示されます。</p>';
     assetForecast.innerHTML = emptyMessage;
     dashboardCurrentAssetContainer.innerHTML = emptyMessage;
     dashboardCurrentAssetForecast.innerHTML = emptyMessage;
     dashboardAge65AssetForecast.innerHTML = emptyMessage;
-    dashboardWithdrawAssetForecast.innerHTML = emptyMessage;
-    if (assetWithdrawForecast) assetWithdrawForecast.innerHTML = emptyMessage;
     return;
   }
 
@@ -5577,17 +5565,6 @@ function renderAssetForecast(settings) {
   });
 
   const projectedRowsAt65 = secondaryAssetOutlook.plansAtAge;
-  const earlyWithdrawPlans = projectedRowsAt65.filter((plan) => !plan.isHeldUntilTargetAge && plan.projectedAmount > 0);
-  const earlyWithdrawPlansForDisplay = earlyWithdrawPlans.map((plan) => {
-    const displayTargetMonth = resolveWithdrawExecutionMonth(plan);
-    const displayProjection = displayTargetMonth
-      ? projectPlanAssetDetails(plan, settings.birthDate, displayTargetMonth)
-      : null;
-    return {
-      ...plan,
-      displayProjectedAmount: displayProjection?.amount ?? plan.projectedAmount,
-    };
-  });
 
   const currentRows = buildCurrentAssetGraphRows(settings, currentAssetTargetMonth, {
     asOfDate: currentAssetBaseDate,
@@ -5603,23 +5580,6 @@ function renderAssetForecast(settings) {
       .reduce((sum, plan) => sum + plan.projectedAmount, 0);
     return { type, amount };
   }).filter((item) => item.amount > 0);
-  const earlyWithdrawItemsHtml = earlyWithdrawPlansForDisplay
-    .map((plan) => {
-      const withdrawLabel = parseMonth(plan.withdrawMonth)
-        ? formatWithdrawMonthLabelWithAge(plan.withdrawMonth, settings.birthDate)
-        : "未設定";
-      return `
-        <li>
-          <div class="asset-withdraw-item-main">
-            <span class="asset-withdraw-contract">${formatAssetContractLabel(plan.type, plan.name)}</span>
-            <span class="asset-withdraw-age">取崩し: ${withdrawLabel}</span>
-          </div>
-          <strong>${yen.format(plan.displayProjectedAmount)}</strong>
-        </li>
-      `;
-    })
-    .join("");
-
   const typeTotalsHtml = typeTotals
     .map((item) => `<li><span>${item.type} 合計</span><strong>${yen.format(item.amount)}</strong></li>`)
     .join("");
@@ -5639,19 +5599,6 @@ function renderAssetForecast(settings) {
       <p class="section-description">現在入力されている資産形成の契約（積立・一括入金）の実績をもとに算出しています（基準日: ${currentAssetBaseDate}）。</p>
     </section>
   `;
-  const withdrawForecastHtml = `
-    <section class="asset-withdraw-layout asset-outlook">
-      <p class="section-description">取崩し予定を設定した契約のみ表示します。一括解約年月の変更は「基本情報・資産形成設定」で行えます。</p>
-      <h4 class="asset-withdraw-heading">${createAssetOutlookWithdrawTitle(TARGET_AGE_SECONDARY)}</h4>
-      ${earlyWithdrawItemsHtml
-    ? `<ul class="asset-list asset-withdraw-list" aria-label="${createAssetOutlookWithdrawTitle(TARGET_AGE_SECONDARY)}">${earlyWithdrawItemsHtml}</ul>`
-    : `<p class="chart-empty">${createAssetOutlookWithdrawTitle(TARGET_AGE_SECONDARY)}の契約はありません。</p>`}
-    </section>
-  `;
-  dashboardWithdrawAssetForecast.innerHTML = withdrawForecastHtml;
-  if (assetWithdrawForecast) {
-    assetWithdrawForecast.innerHTML = withdrawForecastHtml;
-  }
 
   const chartSection = dashboardCurrentAssetContainer.querySelector(".asset-composition");
   if (!chartSection) {
@@ -6901,9 +6848,6 @@ function clearAssetForecastDOM() {
   if (assetForecast?.childNodes.length) {
     assetForecast.replaceChildren();
   }
-  if (assetWithdrawForecast?.childNodes.length) {
-    assetWithdrawForecast.replaceChildren();
-  }
 }
 
 function queueAssetForecastRender(force = false) {
@@ -7326,7 +7270,7 @@ function openDashboardSubTab(tabName, { behavior = "smooth" } = {}) {
 
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
-      const scrollTarget = dashboardAssetGraphTabbar || dashboardAge65AssetsTab || dashboardAge65AssetsPanel;
+      const scrollTarget = dashboardAssetGraphTabbar;
       if (!scrollTarget) return;
       scrollToElementWithOffset(scrollTarget, { behavior });
     });
