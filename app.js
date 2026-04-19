@@ -6180,27 +6180,41 @@ function createPlanBlock(plan = {}) {
     </div>
     <div class="plan-card-panel" aria-hidden="false">
       <div class="plan-card-panel-inner">
-        <div class="plan-grid">
-          <div class="plan-primary-fields">
-            <label>種類<select class="plan-type">${typeOptions}</select></label>
-            <label>識別名<input class="plan-name" type="text" maxlength="30" placeholder="例: つみたて枠" value="${normalizedPlan.name || ""}" /></label>
-            <label>
-              設定年月時点元本
-              <input class="plan-initial-principal-at-start-month js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.initialPrincipalAtStartMonth) ? numberWithComma.format(normalizedPlan.initialPrincipalAtStartMonth) : "0"}" />
-              <small>※設定年月時点ですでに保有している元本。現在評価額とは別に扱います。</small>
-            </label>
-            <label>現在評価額<input class="plan-current-value js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.currentValue) ? numberWithComma.format(normalizedPlan.currentValue) : ""}" /></label>
-            <label class="plan-auto-yield-field">
-              現在利回り（自動）
-              <output class="plan-current-auto-yield" aria-live="polite">--</output>
-              <small class="plan-auto-yield-note">過去の入金履歴と現在評価額から自動計算</small>
-            </label>
-            <label>
-              想定利回り(年%)
-              <input class="plan-expected-return" type="number" inputmode="decimal" step="0.01" value="${normalizedPlan.expectedReturn ?? ""}" />
-            </label>
+        <div class="plan-grid asset-form-card-layout">
+          <div class="asset-form-card-layout__row asset-form-card-layout__row--top plan-primary-fields">
+            <div class="asset-form-field-block">
+              <label>種類<select class="plan-type">${typeOptions}</select></label>
+            </div>
+            <div class="asset-form-field-block">
+              <label>識別名<input class="plan-name" type="text" maxlength="30" placeholder="例: つみたて枠" value="${normalizedPlan.name || ""}" /></label>
+            </div>
+            <div class="asset-form-field-block">
+              <label>
+                設定年月時点元本
+                <input class="plan-initial-principal-at-start-month js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.initialPrincipalAtStartMonth) ? numberWithComma.format(normalizedPlan.initialPrincipalAtStartMonth) : "0"}" />
+                <small>※設定年月時点ですでに保有している元本。現在評価額とは別に扱います。</small>
+              </label>
+            </div>
+            <div class="asset-form-field-block">
+              <label>現在評価額<input class="plan-current-value js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.currentValue) ? numberWithComma.format(normalizedPlan.currentValue) : ""}" /></label>
+            </div>
           </div>
-          <div class="plan-expected-return-suggest-row">
+          <div class="asset-form-card-layout__row asset-form-card-layout__row--yield plan-primary-fields">
+            <div class="asset-form-field-block">
+              <label class="plan-auto-yield-field">
+                現在利回り（自動）
+                <output class="plan-current-auto-yield" aria-live="polite">--</output>
+                <small class="plan-auto-yield-note">過去の入金履歴と現在評価額から自動計算</small>
+              </label>
+            </div>
+            <div class="asset-form-field-block">
+              <label>
+                想定利回り(年%)
+                <input class="plan-expected-return" type="number" inputmode="decimal" step="0.01" value="${normalizedPlan.expectedReturn ?? ""}" />
+              </label>
+            </div>
+          </div>
+          <div class="plan-expected-return-suggest-row asset-form-card-layout__suggest-row">
             <button type="button" class="plan-expected-return-suggest">提案値に戻す</button>
           </div>
           <div class="plan-withdrawal-stack">
