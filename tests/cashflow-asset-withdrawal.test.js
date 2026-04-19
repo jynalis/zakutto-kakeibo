@@ -60,11 +60,13 @@ const buildAnnualAssetFormationBalancesByYear = sandbox.buildAnnualAssetFormatio
 const buildCashflowRowsUntilAge = sandbox.buildCashflowRowsUntilAge;
 const calculateSuggestedWithdrawMonth = sandbox.calculateSuggestedWithdrawMonth;
 const projectPlanAssetDetails = sandbox.projectPlanAssetDetails;
+const calculateFinancialAssetTotalAtMonth = sandbox.calculateFinancialAssetTotalAtMonth;
 assert.strictEqual(typeof buildAnnualAssetWithdrawalTransfersByYear, 'function');
 assert.strictEqual(typeof buildAnnualAssetFormationBalancesByYear, 'function');
 assert.strictEqual(typeof buildCashflowRowsUntilAge, 'function');
 assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
 assert.strictEqual(typeof projectPlanAssetDetails, 'function');
+assert.strictEqual(typeof calculateFinancialAssetTotalAtMonth, 'function');
 
 (function testAmountAndUnsetModes() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
@@ -777,6 +779,42 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
 
   assert.strictEqual(highCurrentValueProjection.amount, 840000);
   assert.strictEqual(zeroCurrentValueProjection.amount, 840000);
+})();
+
+(function testMonthlyFinancialAssetProjectionAppliesInstallmentWithdrawalAndStopsContribution() {
+  const settings = {
+    birthDate: '1990-01-01',
+    entryStartMonth: '2024-01',
+    plans: [
+      {
+        id: 'installment-monthly-consistency',
+        expectedReturn: 0,
+        currentValue: 1000000,
+        initialPrincipalAtStartMonth: 1000000,
+        withdrawalDay: 1,
+        monthlyContributions: [
+          { startMonth: '2024-01', amount: 10000 },
+        ],
+        lumpSums: [],
+        withdrawalStartDate: '2025-01',
+        withdrawalMode: 'amount',
+        withdrawalAmount: 120000,
+      },
+    ],
+  };
+
+  assert.strictEqual(
+    calculateFinancialAssetTotalAtMonth(settings, '2024-12', { baseMonth: '2024-01', asOfDate: '2026-12-31' }),
+    1120000
+  );
+  assert.strictEqual(
+    calculateFinancialAssetTotalAtMonth(settings, '2025-12', { baseMonth: '2024-01', asOfDate: '2026-12-31' }),
+    1000000
+  );
+  assert.strictEqual(
+    calculateFinancialAssetTotalAtMonth(settings, '2026-12', { baseMonth: '2024-01', asOfDate: '2026-12-31' }),
+    880000
+  );
 })();
 
 console.log('cashflow asset withdrawal tests passed');

@@ -4210,9 +4210,7 @@ function calculatePlanInstallmentActiveMonthsInYear(plan, yearStartMonth, yearEn
   if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return 0;
   if (compareMonth(yearStartMonth, yearEndMonth) > 0) return 0;
   if (typeof plan?.useInstallment === "boolean" && !plan.useInstallment) return 0;
-  const startDate = parseMonth(plan?.installmentStartDate)
-    ? plan.installmentStartDate
-    : (parseMonth(plan?.withdrawalStartDate) ? plan.withdrawalStartDate : "");
+  const startDate = resolvePlanInstallmentStartMonth(plan);
   if (!startDate) return 0;
 
   let activeMonths = 0;
@@ -4224,6 +4222,12 @@ function calculatePlanInstallmentActiveMonthsInYear(plan, yearStartMonth, yearEn
     activeMonths += 1;
   }
   return activeMonths;
+}
+
+function resolvePlanInstallmentStartMonth(plan) {
+  if (parseMonth(plan?.installmentStartDate)) return plan.installmentStartDate;
+  if (parseMonth(plan?.withdrawalStartDate)) return plan.withdrawalStartDate;
+  return "";
 }
 
 function resolvePlanInstallmentMode(plan) {
@@ -5313,22 +5317,43 @@ function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, op
   let total = resolvePlanInitialPrincipal(plan);
   const appliedMonthly = [];
   const appliedLumpSums = [];
+  const installmentStartMonth = resolvePlanInstallmentStartMonth(plan);
+  const hasInstallmentEnabled = !(typeof plan?.useInstallment === "boolean" && !plan.useInstallment);
+  const installmentMode = hasInstallmentEnabled ? resolvePlanInstallmentMode(plan) : "";
+  const installmentAmount = hasInstallmentEnabled ? resolvePlanInstallmentAmount(plan) : 0;
+  const installmentRateDecimal = hasInstallmentEnabled ? resolvePlanInstallmentRateDecimal(plan) : 0;
 
   while (compareMonth(month, targetMonth) <= 0) {
     const canApplyMonth = shouldApplyPlanMonthByAsOfDate(plan, month, asOfDate);
-    const monthlyAmount = canApplyMonth ? findActiveMonthlyContribution(plan, month) : 0;
+    const canApplyContribution = canApplyMonth && shouldApplyPlanContributionForMonth(plan, birthDate, month);
+    const monthlyAmount = canApplyContribution ? findActiveMonthlyContribution(plan, month) : 0;
     if (monthlyAmount > 0) {
       appliedMonthly.push({ month, amount: monthlyAmount });
       total += monthlyAmount;
     }
 
-    const lumpSums = canApplyMonth ? getLumpSumsOnMonth(plan, month) : [];
+    const lumpSums = canApplyContribution ? getLumpSumsOnMonth(plan, month) : [];
     lumpSums.forEach((amount) => {
       if (amount > 0) {
         appliedLumpSums.push({ month, amount });
         total += amount;
       }
     });
+
+    if (
+      canApplyMonth
+      && installmentStartMonth
+      && compareMonth(month, installmentStartMonth) >= 0
+      && total > 0
+    ) {
+      let installmentWithdrawal = 0;
+      if (installmentMode === "amount") {
+        installmentWithdrawal = Math.max(installmentAmount, 0) / 12;
+      } else if (installmentMode === "rate") {
+        installmentWithdrawal = total * Math.max(installmentRateDecimal, 0) / 12;
+      }
+      total = Math.max(total - Math.min(installmentWithdrawal, total), 0);
+    }
 
     total *= 1 + monthlyRate;
     month = addOneMonth(month);
