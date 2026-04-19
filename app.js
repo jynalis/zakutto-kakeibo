@@ -253,6 +253,7 @@ const DEFAULT_CASHFLOW_EXPENSE_SETTINGS = {
 
 const TARGET_AGE_PRIMARY = 60;
 const TARGET_AGE_SECONDARY = 65;
+const DASHBOARD_ASSET_OUTLOOK_TARGET_AGE = 64;
 const CASHFLOW_TABLE_TARGET_AGE = 100;
 const ASSET_EVALUATION_REFERENCE_MODE = "year-end";
 const RETIREMENT_REFERENCE_AGE = TARGET_AGE_PRIMARY;
@@ -3860,9 +3861,12 @@ function renderDashboard({
     lifeEvents,
     assumptions,
   });
-  const age65AssetFormationBalance = findCashflowRowByAge(cashflowRowsForTable, TARGET_AGE_SECONDARY)?.assetFormationBalance ?? 0;
+  const age64YearEndAssetFormationBalance = findCashflowRowByAge(
+    cashflowRowsForTable,
+    DASHBOARD_ASSET_OUTLOOK_TARGET_AGE
+  )?.assetFormationBalance ?? 0;
   if (dashboardAge65Total) {
-    dashboardAge65Total.textContent = yen.format(age65AssetFormationBalance);
+    dashboardAge65Total.textContent = yen.format(age64YearEndAssetFormationBalance);
   }
   dashboardDiagnosisComment.textContent = createDashboardDiagnosisComment({
     summary,
@@ -5112,10 +5116,14 @@ function resolveReferenceMonthByAge(birthDate, targetAge = RETIREMENT_REFERENCE_
   return cutoffDate ? formatMonth(cutoffDate.getFullYear(), cutoffDate.getMonth()) : null;
 }
 
-function resolveAssetEvaluationReferenceMonthByAge(birthDate, targetAge = TARGET_AGE_SECONDARY) {
+function resolveAssetEvaluationReferenceMonthByAge(birthDate, targetAge = TARGET_AGE_SECONDARY, options = {}) {
   const referenceYear = resolveReferenceYearByAge(birthDate, targetAge);
   if (!Number.isInteger(referenceYear)) return null;
-  if (ASSET_EVALUATION_REFERENCE_MODE === "year-end" && targetAge === TARGET_AGE_SECONDARY) {
+  const forceYearEndReference = options?.forceYearEnd === true;
+  if (
+    ASSET_EVALUATION_REFERENCE_MODE === "year-end"
+    && (targetAge === TARGET_AGE_SECONDARY || forceYearEndReference)
+  ) {
     return formatMonth(referenceYear, 11);
   }
   return resolveReferenceMonthByAge(birthDate, targetAge);
@@ -5383,6 +5391,10 @@ function createAssetOutlookPointLabel(age) {
   return `${createAgeLabel(age)}時点`;
 }
 
+function createAssetOutlookYearEndLabel(age) {
+  return `${createAgeLabel(age)}年末時点`;
+}
+
 function buildAssetOutlookAtAge({
   settings,
   transactions,
@@ -5390,8 +5402,13 @@ function buildAssetOutlookAtAge({
   lifeEvents,
   assumptions,
   targetAge,
+  useYearEndReference = false,
 }) {
-  const targetMonth = resolveAssetEvaluationReferenceMonthByAge(settings.birthDate, targetAge);
+  const shouldUseYearEndReference = useYearEndReference
+    || (ASSET_EVALUATION_REFERENCE_MODE === "year-end" && targetAge === TARGET_AGE_SECONDARY);
+  const targetMonth = resolveAssetEvaluationReferenceMonthByAge(settings.birthDate, targetAge, {
+    forceYearEnd: shouldUseYearEndReference,
+  });
   const projectionRows = buildContractProjectionRowsAtAge({
     settings,
     transactions,
@@ -5411,8 +5428,6 @@ function buildAssetOutlookAtAge({
     isHeldUntilTargetAge: isPlanHeldUntilAge(row.plan, targetAge, settings.birthDate),
   }));
   const planBalancesAtAge = plansAtAge.filter((plan) => plan.projectedAmount > 0);
-  const shouldUseYearEndReference = ASSET_EVALUATION_REFERENCE_MODE === "year-end"
-    && targetAge === TARGET_AGE_SECONDARY;
   const totalAtAge = shouldUseYearEndReference
     ? calculateAssetFormationBalanceAtAgeYearEnd({
       settings,
@@ -5540,7 +5555,7 @@ function renderAssetForecast(settings) {
   dashboardCurrentAssetForecast.innerHTML = "";
   dashboardAge65AssetForecast.innerHTML = "";
   if (!settings.birthDate || settings.plans.length === 0) {
-    const emptyMessage = '<p class="chart-empty">生年月日と積立設定を保存すると、現時点と65歳時点の資産試算が表示されます。</p>';
+    const emptyMessage = '<p class="chart-empty">生年月日と積立設定を保存すると、現時点と64歳年末時点の資産試算が表示されます。</p>';
     assetForecast.innerHTML = emptyMessage;
     dashboardCurrentAssetContainer.innerHTML = emptyMessage;
     dashboardCurrentAssetForecast.innerHTML = emptyMessage;
@@ -5561,7 +5576,8 @@ function renderAssetForecast(settings) {
     recurringExpenses,
     lifeEvents,
     assumptions,
-    targetAge: TARGET_AGE_SECONDARY,
+    targetAge: DASHBOARD_ASSET_OUTLOOK_TARGET_AGE,
+    useYearEndReference: true,
   });
 
   const projectedRowsAt65 = secondaryAssetOutlook.plansAtAge;
@@ -5586,10 +5602,10 @@ function renderAssetForecast(settings) {
 
   assetForecast.innerHTML = `
     <section class="chart asset-composition asset-outlook">
-      <p class="section-description">現在年齢: <strong>${currentAge}歳</strong> / ${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の一覧は、キャッシュフロー表の${createAgeLabel(TARGET_AGE_SECONDARY)}行（年末基準）と同じ計算条件で表示しています。</p>
-      <h4>${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の想定資産額（契約別）</h4>
-      <h4 class="asset-type-breakdown-heading">${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の想定資産額（種別別）</h4>
-      ${typeTotalsHtml ? `<ul class="asset-list">${typeTotalsHtml}</ul>` : `<p class="chart-empty">${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の評価対象となる契約はありません。</p>`}
+      <p class="section-description">現在年齢: <strong>${currentAge}歳</strong> / ${createAssetOutlookYearEndLabel(DASHBOARD_ASSET_OUTLOOK_TARGET_AGE)}の一覧は、キャッシュフロー表の${createAgeLabel(DASHBOARD_ASSET_OUTLOOK_TARGET_AGE)}行（年末基準）と同じ計算条件で表示しています。</p>
+      <h4>${createAssetOutlookYearEndLabel(DASHBOARD_ASSET_OUTLOOK_TARGET_AGE)}の想定資産額（契約別）</h4>
+      <h4 class="asset-type-breakdown-heading">${createAssetOutlookYearEndLabel(DASHBOARD_ASSET_OUTLOOK_TARGET_AGE)}の想定資産額（種別別）</h4>
+      ${typeTotalsHtml ? `<ul class="asset-list">${typeTotalsHtml}</ul>` : `<p class="chart-empty">${createAssetOutlookYearEndLabel(DASHBOARD_ASSET_OUTLOOK_TARGET_AGE)}の評価対象となる契約はありません。</p>`}
     </section>
   `;
 
@@ -5636,7 +5652,7 @@ function renderAssetForecast(settings) {
   if (contractEntriesAt65.length === 0 || contractTotalAt65 === 0) {
     const empty = document.createElement("p");
     empty.className = "chart-empty";
-    empty.textContent = `${createAssetOutlookPointLabel(TARGET_AGE_SECONDARY)}の評価対象となる契約はありません。`;
+    empty.textContent = `${createAssetOutlookYearEndLabel(DASHBOARD_ASSET_OUTLOOK_TARGET_AGE)}の評価対象となる契約はありません。`;
     const typeHeading = formationChartSection.querySelector(".asset-type-breakdown-heading");
     typeHeading?.insertAdjacentElement("beforebegin", empty);
     dashboardCurrentAssetForecast.innerHTML = dashboardCurrentAssetContainer.innerHTML;
@@ -5646,7 +5662,7 @@ function renderAssetForecast(settings) {
   }
 
   const { pieWrap: formationPieWrap, legend: formationLegend } = createPieChartElements(contractEntriesAt65, contractTotalAt65, {
-    centerLabel: "65歳時点総額",
+    centerLabel: "64歳年末時点総額",
     colors: ASSET_PIE_COLORS,
     formatCategoryLabel: formatAssetCompositionCategoryLabel,
   });
