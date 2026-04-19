@@ -57,10 +57,12 @@ vm.runInContext(source, sandbox);
 
 const buildAnnualAssetWithdrawalTransfersByYear = sandbox.buildAnnualAssetWithdrawalTransfersByYear;
 const buildAnnualAssetFormationBalancesByYear = sandbox.buildAnnualAssetFormationBalancesByYear;
+const buildCashflowRowsUntilAge = sandbox.buildCashflowRowsUntilAge;
 const calculateSuggestedWithdrawMonth = sandbox.calculateSuggestedWithdrawMonth;
 const projectPlanAssetDetails = sandbox.projectPlanAssetDetails;
 assert.strictEqual(typeof buildAnnualAssetWithdrawalTransfersByYear, 'function');
 assert.strictEqual(typeof buildAnnualAssetFormationBalancesByYear, 'function');
+assert.strictEqual(typeof buildCashflowRowsUntilAge, 'function');
 assert.strictEqual(typeof calculateSuggestedWithdrawMonth, 'function');
 assert.strictEqual(typeof projectPlanAssetDetails, 'function');
 
@@ -253,6 +255,40 @@ assert.strictEqual(typeof projectPlanAssetDetails, 'function');
 
   assert.strictEqual(balances[2025], 300000);
   assert.strictEqual(balances[2026], 300000);
+})();
+
+(function testCashflowRowsUsePostWithdrawalAssetFormationBalance() {
+  const rows = buildCashflowRowsUntilAge({
+    settings: {
+      birthDate: '1990-01-01',
+      entryStartMonth: '2025-01',
+      plans: [
+        {
+          id: 'cashflow-withdraw-sync',
+          expectedReturn: 0,
+          currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          withdrawalStartDate: '2025-01',
+          withdrawalMode: 'amount',
+          withdrawalAmount: 100000,
+        },
+      ],
+    },
+    transactions: [],
+    recurringExpenses: [],
+    lifeEvents: [],
+    assumptions: { salaryGrowthRateBefore60: 0, inflationRate: 0 },
+    targetAge: 37,
+  });
+
+  const row2025 = rows.find((row) => row.year === 2025);
+  const row2026 = rows.find((row) => row.year === 2026);
+  assert.strictEqual(row2025.annualAssetWithdrawalTransfer, 100000);
+  assert.strictEqual(row2025.assetFormationBalance, 900000);
+  assert.strictEqual(row2026.annualAssetWithdrawalTransfer, 100000);
+  assert.strictEqual(row2026.assetFormationBalance, 800000);
 })();
 
 (function testAssetFormationUsesExpectedReturnAndIgnoresCurrentAutoYield() {

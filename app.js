@@ -4737,15 +4737,7 @@ function buildCashflowRowsUntilAge({
   const hasExpenseScenarios = sortedExpenseScenarios.length > 0;
   const lifeEventByMonth = buildLifeEventTotalsByMonth(lifeEvents, settings.birthDate);
   const plannedExtraByMonth = buildPlannedExtraTotalsByMonth(transactions, averageStartMonth);
-  const annualAssetWithdrawalTransfersByYear = buildAnnualAssetWithdrawalTransfersByYear({
-    settings,
-    startYear,
-    endYear,
-    startMonth: cashflowStartMonth,
-    referenceMonth,
-    targetAge,
-  });
-  const assetFormationBalancesByYear = buildCashflowAssetFormationBalancesByYear({
+  const annualAssetSnapshotsByYear = buildAnnualAssetSnapshotsByYear({
     settings,
     startYear,
     endYear,
@@ -4830,8 +4822,8 @@ function buildCashflowRowsUntilAge({
     );
     const annualExtraIncome = annualLifeEventIncome + annualPlannedExtraIncome;
     const annualExtraExpense = annualLifeEventExpense + annualPlannedExtraExpense;
-    const annualAssetWithdrawalTransferBySetting = annualAssetWithdrawalTransfersByYear[year] || 0;
-    const annualAssetWithdrawalTransfer = annualAssetWithdrawalTransferBySetting;
+    const annualAssetSnapshot = annualAssetSnapshotsByYear[year] || {};
+    const annualAssetWithdrawalTransfer = annualAssetSnapshot.withdrawal || 0;
     const annualTotalIncome = annualIncome
       + annualAssetWithdrawalTransfer
       + annualExtraIncome;
@@ -4842,7 +4834,7 @@ function buildCashflowRowsUntilAge({
       + annualExtraExpense;
     const annualBalance = annualTotalIncome - annualTotalExpense;
     endingBalance += annualBalance;
-    const assetFormationBalance = assetFormationBalancesByYear[year] || 0;
+    const assetFormationBalance = annualAssetSnapshot.endingBalance || 0;
     const financialAssetTotal = endingBalance + assetFormationBalance;
 
     rows.push({
