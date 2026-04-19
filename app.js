@@ -4279,6 +4279,132 @@ function resolvePlanInstallmentRateDecimal(plan) {
   return Math.max(parseRateInput(sourceRate), 0) / 100;
 }
 
+function resolvePlanLumpSumWithdrawalMode(plan) {
+  if (plan?.lumpSumMode === "amount" || plan?.lumpSumMode === "rate") return plan.lumpSumMode;
+  return plan?.lumpSumAmountMode === "full" ? "rate" : "amount";
+}
+
+function resolvePlanLumpSumWithdrawalAmount(plan, availableBalanceBeforeWithdrawal) {
+  const safeAvailableBalance = Math.max(Number(availableBalanceBeforeWithdrawal) || 0, 0);
+  if (safeAvailableBalance <= 0) return 0;
+  if (typeof plan?.useLumpSum === "boolean" && !plan.useLumpSum) return 0;
+
+  const mode = resolvePlanLumpSumWithdrawalMode(plan);
+  if (mode === "rate") {
+    const rate = Math.max(parseRateInput(plan?.lumpSumRate), 0) / 100;
+    return Math.min(safeAvailableBalance * rate, safeAvailableBalance);
+  }
+
+  const amount = Math.max(Number(plan?.lumpSumAmount) || 0, 0);
+  return Math.min(amount, safeAvailableBalance);
+}
+
+function simulatePlanMonthlyBalanceTrajectory(plan, birthDate, options = {}) {
+  const startMonth = parseMonth(options?.startMonth) ? options.startMonth : null;
+  const endMonth = parseMonth(options?.endMonth) ? options.endMonth : null;
+  if (!startMonth || !endMonth || compareMonth(startMonth, endMonth) > 0) {
+    return {
+      startMonth,
+      endMonth,
+      monthlyRate: 0,
+      openingBalance: resolvePlanInitialPrincipal(plan),
+      endingBalance: resolvePlanInitialPrincipal(plan),
+      rows: [],
+    };
+  }
+
+  const annualReturn = parseRateInput(plan?.expectedReturn) / 100;
+  const monthlyRate = Math.pow(1 + annualReturn, 1 / 12) - 1;
+  const asOfDate = resolveAsOfDate(options?.asOfDate);
+  const includeContribution = options?.includeContribution !== false;
+  const includeInstallmentWithdrawal = options?.includeInstallmentWithdrawal !== false;
+  const includeLumpSumWithdrawal = options?.includeLumpSumWithdrawal !== false;
+  const includeMonthlyReturn = options?.includeMonthlyReturn !== false;
+  const openingBalance = Math.max(Number(options?.openingBalance), 0);
+  let balance = Number.isFinite(openingBalance) ? openingBalance : resolvePlanInitialPrincipal(plan);
+
+  const installmentStartMonth = resolvePlanInstallmentStartMonth(plan);
+  const installmentMode = resolvePlanInstallmentMode(plan);
+  const installmentAmount = resolvePlanInstallmentAmount(plan);
+  const installmentRateDecimal = resolvePlanInstallmentRateDecimal(plan);
+  const lumpSumExecutionMonth = resolveWithdrawExecutionMonth(plan);
+
+  let month = startMonth;
+  const rows = [];
+  while (compareMonth(month, endMonth) <= 0) {
+    const beginningBalance = balance;
+    const canApplyMonth = shouldApplyPlanMonthByAsOfDate(plan, month, asOfDate);
+
+    let monthlyContribution = 0;
+    const monthlyLumpSums = [];
+    if (includeContribution && canApplyMonth && shouldApplyPlanContributionForMonth(plan, birthDate, month)) {
+      monthlyContribution = findActiveMonthlyContribution(plan, month);
+      getLumpSumsOnMonth(plan, month).forEach((amount) => {
+        if (amount > 0) monthlyLumpSums.push(amount);
+      });
+    }
+
+    const contributionTotal = Math.max(monthlyContribution, 0) + monthlyLumpSums.reduce((sum, amount) => sum + amount, 0);
+    let balanceBeforeWithdrawal = Math.max(beginningBalance + contributionTotal, 0);
+
+    let installmentWithdrawal = 0;
+    if (
+      includeInstallmentWithdrawal
+      && canApplyMonth
+      && installmentStartMonth
+      && compareMonth(month, installmentStartMonth) >= 0
+      && balanceBeforeWithdrawal > 0
+    ) {
+      if (installmentMode === "amount") {
+        installmentWithdrawal = Math.max(installmentAmount, 0) / 12;
+      } else if (installmentMode === "rate") {
+        installmentWithdrawal = balanceBeforeWithdrawal * Math.max(installmentRateDecimal, 0) / 12;
+      }
+      installmentWithdrawal = Math.min(installmentWithdrawal, balanceBeforeWithdrawal);
+      balanceBeforeWithdrawal = Math.max(balanceBeforeWithdrawal - installmentWithdrawal, 0);
+    }
+
+    let lumpSumWithdrawal = 0;
+    if (
+      includeLumpSumWithdrawal
+      && canApplyMonth
+      && lumpSumExecutionMonth
+      && compareMonth(month, lumpSumExecutionMonth) === 0
+      && balanceBeforeWithdrawal > 0
+    ) {
+      lumpSumWithdrawal = resolvePlanLumpSumWithdrawalAmount(plan, balanceBeforeWithdrawal);
+      balanceBeforeWithdrawal = Math.max(balanceBeforeWithdrawal - lumpSumWithdrawal, 0);
+    }
+
+    const monthlyReturn = includeMonthlyReturn ? balanceBeforeWithdrawal * monthlyRate : 0;
+    balance = Math.max(balanceBeforeWithdrawal + monthlyReturn, 0);
+
+    rows.push({
+      month,
+      beginningBalance,
+      monthlyContribution: Math.max(monthlyContribution, 0),
+      monthlyLumpSumTotal: monthlyLumpSums.reduce((sum, amount) => sum + amount, 0),
+      contributionTotal,
+      installmentWithdrawal,
+      lumpSumWithdrawal,
+      monthlyReturn,
+      endingBalance: balance,
+      canApplyMonth,
+    });
+
+    month = addOneMonth(month);
+  }
+
+  return {
+    startMonth,
+    endMonth,
+    monthlyRate,
+    openingBalance: rows[0]?.beginningBalance ?? balance,
+    endingBalance: balance,
+    rows,
+  };
+}
+
 function resolvePlanAnnualInstallmentWithdrawalAmount(plan, availableBalanceBeforeWithdrawal, activeMonthsInYear = 12) {
   const safeAvailableBalance = Math.max(Number(availableBalanceBeforeWithdrawal) || 0, 0);
   if (safeAvailableBalance <= 0) return 0;
@@ -4316,16 +4442,7 @@ function resolvePlanAnnualLumpSumWithdrawalAmount(plan, yearStartMonth, yearEndM
   const safeAvailableBalance = Math.max(Number(availableBalanceBeforeWithdrawal) || 0, 0);
   if (safeAvailableBalance <= 0) return 0;
 
-  const lumpSumMode = plan?.lumpSumMode === "rate" || plan?.lumpSumMode === "amount"
-    ? plan.lumpSumMode
-    : (plan?.lumpSumAmountMode === "full" ? "rate" : "amount");
-  if (lumpSumMode === "rate") {
-    const lumpSumRate = Math.max(parseRateInput(plan?.lumpSumRate), 0) / 100;
-    return Math.min(safeAvailableBalance * lumpSumRate, safeAvailableBalance);
-  }
-
-  const lumpSumAmount = Math.max(Number(plan?.lumpSumAmount) || 0, 0);
-  return Math.min(lumpSumAmount, safeAvailableBalance);
+  return resolvePlanLumpSumWithdrawalAmount(plan, safeAvailableBalance);
 }
 
 function resolvePlanExpectedAnnualReturnRate(plan) {
@@ -5267,6 +5384,8 @@ function projectCurrentAssetGraphPlanBalance(plan, settings, targetMonth, option
   };
 
   const asOfDate = resolveAsOfDate(options?.asOfDate);
+  const annualReturn = parseRateInput(plan.expectedReturn) / 100;
+  const monthlyRate = Math.pow(1 + annualReturn, 1 / 12) - 1;
   const baseMonth = resolveCurrentAssetGraphBaseMonth(settings, plan, targetMonth);
   if (!baseMonth || compareMonth(baseMonth, targetMonth) > 0) {
     return {
@@ -5278,8 +5397,6 @@ function projectCurrentAssetGraphPlanBalance(plan, settings, targetMonth, option
     };
   }
 
-  const annualReturn = parseRateInput(plan.expectedReturn) / 100;
-  const monthlyRate = Math.pow(1 + annualReturn, 1 / 12) - 1;
   let month = baseMonth;
   let total = Math.max(Number(plan?.initialPrincipalAtStartMonth) || 0, 0);
   const appliedMonthly = [];
@@ -5328,8 +5445,6 @@ function buildCurrentAssetGraphRows(settings, targetMonth, options = {}) {
 }
 
 function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, options = {}) {
-  const annualReturn = parseRateInput(plan.expectedReturn) / 100;
-  const monthlyRate = Math.pow(1 + annualReturn, 1 / 12) - 1;
   const targetMonth = explicitTargetMonth || resolveWithdrawExecutionMonth(plan);
   const asOfDate = resolveAsOfDate(options?.asOfDate);
   if (!targetMonth) {
@@ -5355,54 +5470,24 @@ function projectPlanAssetDetails(plan, birthDate, explicitTargetMonth = null, op
     };
   }
 
-  let month = baseMonth;
-  let total = resolvePlanInitialPrincipal(plan);
-  const appliedMonthly = [];
-  const appliedLumpSums = [];
-  const installmentStartMonth = resolvePlanInstallmentStartMonth(plan);
-  const hasInstallmentEnabled = !(typeof plan?.useInstallment === "boolean" && !plan.useInstallment);
-  const installmentMode = hasInstallmentEnabled ? resolvePlanInstallmentMode(plan) : "";
-  const installmentAmount = hasInstallmentEnabled ? resolvePlanInstallmentAmount(plan) : 0;
-  const installmentRateDecimal = hasInstallmentEnabled ? resolvePlanInstallmentRateDecimal(plan) : 0;
+  const simulation = simulatePlanMonthlyBalanceTrajectory(plan, birthDate, {
+    startMonth: baseMonth,
+    endMonth: targetMonth,
+    asOfDate,
+    includeLumpSumWithdrawal: false,
+    includeInstallmentWithdrawal: true,
+    includeMonthlyReturn: true,
+  });
 
-  while (compareMonth(month, targetMonth) <= 0) {
-    const canApplyMonth = shouldApplyPlanMonthByAsOfDate(plan, month, asOfDate);
-    const canApplyContribution = canApplyMonth && shouldApplyPlanContributionForMonth(plan, birthDate, month);
-    const monthlyAmount = canApplyContribution ? findActiveMonthlyContribution(plan, month) : 0;
-    if (monthlyAmount > 0) {
-      appliedMonthly.push({ month, amount: monthlyAmount });
-      total += monthlyAmount;
-    }
-
-    const lumpSums = canApplyContribution ? getLumpSumsOnMonth(plan, month) : [];
-    lumpSums.forEach((amount) => {
-      if (amount > 0) {
-        appliedLumpSums.push({ month, amount });
-        total += amount;
-      }
-    });
-
-    if (
-      canApplyMonth
-      && installmentStartMonth
-      && compareMonth(month, installmentStartMonth) >= 0
-      && total > 0
-    ) {
-      let installmentWithdrawal = 0;
-      if (installmentMode === "amount") {
-        installmentWithdrawal = Math.max(installmentAmount, 0) / 12;
-      } else if (installmentMode === "rate") {
-        installmentWithdrawal = total * Math.max(installmentRateDecimal, 0) / 12;
-      }
-      total = Math.max(total - Math.min(installmentWithdrawal, total), 0);
-    }
-
-    total *= 1 + monthlyRate;
-    month = addOneMonth(month);
-  }
+  const appliedMonthly = simulation.rows
+    .filter((row) => row.monthlyContribution > 0)
+    .map((row) => ({ month: row.month, amount: row.monthlyContribution }));
+  const appliedLumpSums = simulation.rows
+    .filter((row) => row.monthlyLumpSumTotal > 0)
+    .map((row) => ({ month: row.month, amount: row.monthlyLumpSumTotal }));
 
   return {
-    amount: Math.round(total),
+    amount: Math.round(simulation.endingBalance),
     baseMonth,
     targetMonth,
     months: monthsBetweenInclusive(baseMonth, targetMonth),
