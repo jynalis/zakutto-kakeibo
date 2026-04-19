@@ -2277,27 +2277,6 @@ button.plan-card-trigger {
   flex-shrink: 0;
 }
 
-.asset-total {
-  font-weight: 700;
-  color: var(--primary-strong);
-  background: linear-gradient(180deg, #f6f9ff 0%, #eef4fd 100%);
-  border: 1px solid #cfdbec;
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-size: 1.02rem;
-}
-
-.asset-outlook-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.asset-total-compact {
-  font-size: 0.93rem;
-  padding: 10px 12px;
-}
-
 .asset-breakdown-list {
   list-style: none;
   margin: 10px 0 0;
@@ -3384,11 +3363,6 @@ body.is-keyboard-open .floating-top-button {
 
   .dashboard-card strong {
     font-size: 1rem;
-  }
-
-  .asset-outlook-summary-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
   }
 
   .asset-main-tabs {
