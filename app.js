@@ -3331,8 +3331,13 @@ function calculateAssetFormationBalanceAtAgeYearEnd({
     lifeEvents,
     assumptions,
   });
-  const targetRow = rows.find((row) => row.age === targetAge) || null;
+  const targetRow = findCashflowRowByAge(rows, targetAge);
   return targetRow?.assetFormationBalance ?? 0;
+}
+
+function findCashflowRowByAge(rows, targetAge) {
+  if (!Array.isArray(rows) || !Number.isFinite(targetAge)) return null;
+  return rows.find((row) => row.age === targetAge) || null;
 }
 
 function resolveAge60AssetFormationBalance({ settings, transactions, recurringExpenses, lifeEvents, assumptions }) {
@@ -3852,14 +3857,14 @@ function renderDashboard({
   dashboardIncomeTotal.textContent = yen.format(summary.income);
   dashboardExpenseTotal.textContent = yen.format(summary.expense);
   dashboardBalanceTotal.textContent = yen.format(summary.endingBalance);
-  const age65AssetFormationBalance = calculateAssetFormationBalanceAtAgeYearEnd({
+  const cashflowRowsForTable = buildCashflowRows({
     settings,
     transactions,
     recurringExpenses,
     lifeEvents,
     assumptions,
-    targetAge: TARGET_AGE_SECONDARY,
   });
+  const age65AssetFormationBalance = findCashflowRowByAge(cashflowRowsForTable, TARGET_AGE_SECONDARY)?.assetFormationBalance ?? 0;
   if (dashboardAge65Total) {
     dashboardAge65Total.textContent = yen.format(age65AssetFormationBalance);
   }
