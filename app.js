@@ -4410,116 +4410,6 @@ function simulatePlanMonthlyBalanceTrajectory(plan, birthDate, options = {}) {
   };
 }
 
-function resolvePlanAnnualInstallmentWithdrawalAmount(plan, availableBalanceBeforeWithdrawal, activeMonthsInYear = 12) {
-  const safeAvailableBalance = Math.max(Number(availableBalanceBeforeWithdrawal) || 0, 0);
-  if (safeAvailableBalance <= 0) return 0;
-  if (typeof plan?.useInstallment === "boolean" && !plan.useInstallment) return 0;
-  const safeActiveMonths = Math.max(Math.min(Number(activeMonthsInYear) || 0, 12), 0);
-  if (safeActiveMonths <= 0) return 0;
-  const prorationFactor = safeActiveMonths / 12;
-  const installmentMode = resolvePlanInstallmentMode(plan);
-
-  if (installmentMode === "amount") {
-    const annualAmount = resolvePlanInstallmentAmount(plan);
-    return Math.min(annualAmount * prorationFactor, safeAvailableBalance);
-  }
-
-  if (installmentMode === "rate") {
-    const annualRate = resolvePlanInstallmentRateDecimal(plan);
-    const calculated = safeAvailableBalance * annualRate * prorationFactor;
-    return Math.min(calculated, safeAvailableBalance);
-  }
-
-  return 0;
-}
-
-function resolvePlanAnnualLumpSumWithdrawalAmount(plan, yearStartMonth, yearEndMonth, availableBalanceBeforeWithdrawal) {
-  if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return 0;
-  if (compareMonth(yearStartMonth, yearEndMonth) > 0) return 0;
-  if (typeof plan?.useLumpSum === "boolean" && !plan.useLumpSum) return 0;
-
-  const withdrawTargetMonth = resolveWithdrawExecutionMonth(plan);
-  if (!withdrawTargetMonth) return 0;
-  if (compareMonth(withdrawTargetMonth, yearStartMonth) < 0 || compareMonth(withdrawTargetMonth, yearEndMonth) > 0) {
-    return 0;
-  }
-
-  const safeAvailableBalance = Math.max(Number(availableBalanceBeforeWithdrawal) || 0, 0);
-  if (safeAvailableBalance <= 0) return 0;
-
-  return resolvePlanLumpSumWithdrawalAmount(plan, safeAvailableBalance);
-}
-
-function resolvePlanExpectedAnnualReturnRate(plan) {
-  return parseRateInput(plan?.expectedReturn) / 100;
-}
-
-function calculatePlanAnnualProjectionStep(plan, {
-  year,
-  yearStartMonth,
-  yearEndMonth,
-  yearStartBalance,
-}) {
-  const openingBalance = Math.max(Number(yearStartBalance) || 0, 0);
-  const annualContributions = calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth);
-  const annualLumpSums = calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth);
-  const balanceBeforeWithdrawal = Math.max(openingBalance + annualContributions + annualLumpSums, 0);
-
-  const annualLumpSumWithdrawal = resolvePlanAnnualLumpSumWithdrawalAmount(
-    plan,
-    yearStartMonth,
-    yearEndMonth,
-    balanceBeforeWithdrawal
-  );
-  const balanceAfterLumpSumWithdrawal = Math.max(balanceBeforeWithdrawal - annualLumpSumWithdrawal, 0);
-
-  const activeMonthsInYear = calculatePlanInstallmentActiveMonthsInYear(plan, yearStartMonth, yearEndMonth);
-  const annualInstallmentWithdrawal = activeMonthsInYear > 0
-    ? resolvePlanAnnualInstallmentWithdrawalAmount(plan, balanceAfterLumpSumWithdrawal, activeMonthsInYear)
-    : 0;
-  const balanceAfterWithdrawal = Math.max(balanceAfterLumpSumWithdrawal - annualInstallmentWithdrawal, 0);
-
-  const annualReturnRate = resolvePlanExpectedAnnualReturnRate(plan);
-  const annualReturn = balanceAfterWithdrawal * annualReturnRate;
-  const yearEndBalance = Math.max(balanceAfterWithdrawal + annualReturn, 0);
-
-  return {
-    year,
-    yearStartBalance: openingBalance,
-    annualContributions,
-    annualLumpSums,
-    annualLumpSumWithdrawal,
-    annualInstallmentWithdrawal,
-    balanceAfterWithdrawal,
-    annualReturn,
-    yearEndBalance,
-  };
-}
-
-function buildPlanAnnualBalanceRows(plan, { startYear, endYear, startMonth, referenceMonth }) {
-  if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) return [];
-
-  const rows = [];
-  let carryBalance = resolvePlanInitialPrincipal(plan);
-
-  for (let year = startYear; year <= endYear; year += 1) {
-    const yearStartMonth = year === startYear ? startMonth : formatMonth(year, 0);
-    const yearEndMonth = year === endYear ? referenceMonth : formatMonth(year, 11);
-    if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth) || compareMonth(yearStartMonth, yearEndMonth) > 0) continue;
-
-    const annualRow = calculatePlanAnnualProjectionStep(plan, {
-      year,
-      yearStartMonth,
-      yearEndMonth,
-      yearStartBalance: carryBalance,
-    });
-    rows.push(annualRow);
-    carryBalance = annualRow.yearEndBalance;
-  }
-
-  return rows;
-}
-
 function buildCashflowAssetFormationBalancesByYear({
   settings,
   startYear,
@@ -4588,10 +4478,6 @@ function calculateCashflowContractProjection(contract, { startYear, endYear, sta
   return projectionByYear;
 }
 
-function calculateContractProjection(contract, options) {
-  return calculateCashflowContractProjection(contract, options);
-}
-
 function aggregateAssetFormationByYear(contractProjections, { birthDate, startYear, endYear, targetAge }) {
   if (!Array.isArray(contractProjections)) return {};
   if (!parseBirthDate(birthDate)) return {};
@@ -4606,30 +4492,6 @@ function aggregateAssetFormationByYear(contractProjections, { birthDate, startYe
     ), 0));
   }
   return totalsByYear;
-}
-
-function calculateAnnualPlanContributions(plan, year, yearStartMonth, yearEndMonth) {
-  let total = 0;
-  for (let monthIndex = 0; monthIndex < 12; monthIndex += 1) {
-    const month = formatMonth(year, monthIndex);
-    if (compareMonth(month, yearStartMonth) < 0 || compareMonth(month, yearEndMonth) > 0) continue;
-    if (!shouldApplyPlanContributionForMonth(plan, "", month)) continue;
-    total += findActiveMonthlyContribution(plan, month);
-  }
-  return total;
-}
-
-function calculateAnnualPlanLumpSums(plan, year, yearStartMonth, yearEndMonth) {
-  const lumpSums = Array.isArray(plan?.lumpSums) ? plan.lumpSums : [];
-  const appliedMonths = new Set();
-  return lumpSums.reduce((sum, history) => {
-    if (!parseMonth(history?.month)) return sum;
-    if (compareMonth(history.month, yearStartMonth) < 0 || compareMonth(history.month, yearEndMonth) > 0) return sum;
-    if (!shouldApplyPlanContributionForMonth(plan, "", history.month)) return sum;
-    if (appliedMonths.has(history.month)) return sum;
-    appliedMonths.add(history.month);
-    return sum + Math.max(Number(history.amount) || 0, 0);
-  }, 0);
 }
 
 function buildAnnualAssetWithdrawalTransfersByYear({
