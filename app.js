@@ -6756,7 +6756,6 @@ function renderRegisteredPlans(settings) {
 
   plans.forEach((plan) => {
     const normalizedPlan = normalizePlan(plan);
-    const currentAutoYield = calculateCurrentAutoYield(normalizedPlan);
     const monthlyContribution = findActiveMonthlyContribution(normalizedPlan, todayISO().slice(0, 7));
     const lumpTotal = normalizedPlan.lumpSums.reduce((sum, history) => sum + (Number(history.amount) || 0), 0);
     const card = document.createElement("article");
@@ -6770,9 +6769,9 @@ function renderRegisteredPlans(settings) {
         <li><span>識別名</span><strong>${normalizedPlan.name || "未設定"}</strong></li>
         <li><span>設定年月時点元本</span><strong>${yen.format(normalizedPlan.initialPrincipalAtStartMonth || 0)}</strong></li>
         <li><span>現在評価額</span><strong>${Number.isFinite(normalizedPlan.currentValue) ? yen.format(normalizedPlan.currentValue) : "--"}</strong></li>
-        <li><span>現在利回り（自動）</span><strong>${formatAutoYieldPercent(currentAutoYield)}</strong></li>
         <li><span>想定利回り</span><strong>${formatPlanAnnualReturn(normalizedPlan.expectedReturn)}</strong></li>
         <li><span>一括解約年月</span><strong>${normalizedPlan.withdrawMonth ? formatWithdrawMonthLabelWithAge(normalizedPlan.withdrawMonth, settings?.birthDate) : "未設定"}</strong></li>
+        <li><span>分割開始年月</span><strong>${normalizedPlan.installmentStartDate ? formatWithdrawMonthLabelWithAge(normalizedPlan.installmentStartDate, settings?.birthDate) : "未設定"}</strong></li>
         <li><span>積立額（月額）</span><strong>${monthlyContribution > 0 ? yen.format(monthlyContribution) : "未設定"}</strong></li>
         <li><span>一括入金（累計）</span><strong>${lumpTotal > 0 ? yen.format(lumpTotal) : "なし"}</strong></li>
       </ul>
