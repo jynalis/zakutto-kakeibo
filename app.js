@@ -15,6 +15,7 @@ const BACKUP_STORAGE_KEYS = [
   CASHFLOW_INCOME_SETTINGS_KEY,
   CASHFLOW_EXPENSE_SETTINGS_KEY,
 ];
+const MAX_WITHDRAWAL_SPLIT_SCENARIOS = 3;
 
 const form = document.getElementById("transaction-form");
 const dateInput = document.getElementById("date");
@@ -1040,7 +1041,23 @@ function normalizePlan(rawPlan) {
   const lumpSumAmount = Number.isFinite(normalizedLumpSumAmount) ? Math.max(normalizedLumpSumAmount, 0) : null;
   const lumpSumRate = Number.isFinite(normalizedLumpSumRate) ? Math.max(normalizedLumpSumRate, 0) : null;
   const lumpSumAmountMode = lumpSumMode === "amount" ? "partial" : "full";
-  const hasInstallmentSetting = Boolean(installmentMode || installmentStartDate);
+  const fallbackInstallmentScenario = {
+    startMonth: installmentStartDate,
+    mode: installmentMode,
+    amount: installmentAmount,
+    rate: installmentRate,
+  };
+  const normalizedWithdrawalSplitScenarios = normalizeWithdrawalSplitScenarios(
+    plan.withdrawalSplitScenarios,
+    fallbackInstallmentScenario
+  );
+  const primaryInstallmentScenario = normalizedWithdrawalSplitScenarios[0] || {
+    startMonth: "",
+    mode: "amount",
+    amount: null,
+    rate: null,
+  };
+  const hasInstallmentSetting = normalizedWithdrawalSplitScenarios.length > 0;
   const hasLumpSumSetting = Boolean(
     lumpSumDate
     || (lumpSumMode === "amount" && lumpSumAmount !== null && lumpSumAmount > 0)
@@ -1081,26 +1098,62 @@ function normalizePlan(rawPlan) {
     lumpSumAmountMode,
     lumpSumAmount,
     lumpSumRate,
-    installmentStartDate,
-    installmentMode,
-    installmentAmount,
-    installmentRate,
+    installmentStartDate: primaryInstallmentScenario.startMonth,
+    installmentMode: primaryInstallmentScenario.mode,
+    installmentAmount: primaryInstallmentScenario.mode === "amount" ? primaryInstallmentScenario.amount : null,
+    installmentRate: primaryInstallmentScenario.mode === "rate" ? primaryInstallmentScenario.rate : null,
+    withdrawalSplitScenarios: normalizedWithdrawalSplitScenarios,
     hybridLumpSumDate: lumpSumDate,
     hybridLumpSumMode: lumpSumMode,
     hybridLumpSumAmount: lumpSumAmount,
     hybridLumpSumRate: lumpSumRate,
-    hybridInstallmentStartDate: installmentStartDate,
-    hybridInstallmentMode: installmentMode,
-    hybridInstallmentAmount: installmentAmount,
-    hybridInstallmentRate: installmentRate,
+    hybridInstallmentStartDate: primaryInstallmentScenario.startMonth,
+    hybridInstallmentMode: primaryInstallmentScenario.mode,
+    hybridInstallmentAmount: primaryInstallmentScenario.mode === "amount" ? primaryInstallmentScenario.amount : null,
+    hybridInstallmentRate: primaryInstallmentScenario.mode === "rate" ? primaryInstallmentScenario.rate : null,
     withdrawMonth: lumpSumDate,
-    withdrawalStartDate: installmentStartDate,
-    withdrawalMode: installmentMode,
-    withdrawalAmount: installmentAmount,
-    withdrawalRate: installmentRate,
+    withdrawalStartDate: primaryInstallmentScenario.startMonth,
+    withdrawalMode: primaryInstallmentScenario.mode,
+    withdrawalAmount: primaryInstallmentScenario.mode === "amount" ? primaryInstallmentScenario.amount : null,
+    withdrawalRate: primaryInstallmentScenario.mode === "rate" ? primaryInstallmentScenario.rate : null,
     lumpSums: normalizeLumpSumHistory(plan),
     monthlyContributions: normalizeMonthlyContributionHistory(plan),
   };
+}
+
+function normalizeWithdrawalSplitScenarios(rawScenarios, fallbackScenario = null) {
+  const sourceScenarios = Array.isArray(rawScenarios) && rawScenarios.length > 0
+    ? rawScenarios
+    : [fallbackScenario];
+  const normalized = sourceScenarios
+    .map((scenario, index) => {
+      if (!scenario || typeof scenario !== "object") return null;
+      const startMonth = parseMonth(scenario.startMonth)
+        ? scenario.startMonth
+        : (parseMonth(scenario.installmentStartDate) ? scenario.installmentStartDate : "");
+      const mode = scenario.mode === "amount" || scenario.mode === "rate"
+        ? scenario.mode
+        : (scenario.installmentMode === "amount" || scenario.installmentMode === "rate"
+          ? scenario.installmentMode
+          : "");
+      const amountRaw = scenario.amount ?? scenario.installmentAmount;
+      const rateRaw = scenario.rate ?? scenario.installmentRate;
+      const amount = Number.isFinite(Number(amountRaw)) ? Math.max(Number(amountRaw), 0) : null;
+      const rate = Number.isFinite(Number(rateRaw)) ? Math.max(Number(rateRaw), 0) : null;
+      return {
+        id: typeof scenario.id === "string" && scenario.id ? scenario.id : crypto.randomUUID(),
+        startMonth,
+        mode,
+        amount: mode === "amount" ? amount : null,
+        rate: mode === "rate" ? rate : null,
+        __inputOrder: index,
+      };
+    })
+    .filter((scenario) => scenario && parseMonth(scenario.startMonth) && (scenario.mode === "amount" || scenario.mode === "rate"))
+    .sort((a, b) => compareMonth(a.startMonth, b.startMonth) || (a.__inputOrder - b.__inputOrder))
+    .slice(0, MAX_WITHDRAWAL_SPLIT_SCENARIOS)
+    .map(({ __inputOrder, ...scenario }) => scenario);
+  return normalized;
 }
 
 function loadSettings() {
@@ -3399,9 +3452,11 @@ function isPlanHeldUntilAge(plan, age, birthDate = "") {
 }
 
 function resolvePlanFirstWithdrawalMonth(plan) {
+  const installmentScenarioStartMonths = resolvePlanInstallmentScenarios(plan).map((scenario) => scenario.startMonth);
   const candidateMonths = [
     plan?.lumpSumDate,
     plan?.withdrawMonth,
+    ...installmentScenarioStartMonths,
     plan?.installmentStartDate,
     plan?.withdrawalStartDate,
   ].filter((month) => parseMonth(month));
@@ -4388,40 +4443,30 @@ function calculatePlanInstallmentActiveMonthsInYear(plan, yearStartMonth, yearEn
   if (!parseMonth(yearStartMonth) || !parseMonth(yearEndMonth)) return 0;
   if (compareMonth(yearStartMonth, yearEndMonth) > 0) return 0;
   if (typeof plan?.useInstallment === "boolean" && !plan.useInstallment) return 0;
-  const startDate = resolvePlanInstallmentStartMonth(plan);
-  if (!startDate) return 0;
+  const scenarios = resolvePlanInstallmentScenarios(plan);
+  if (scenarios.length === 0) return 0;
+  const earliestStartDate = scenarios[0].startMonth;
 
   let activeMonths = 0;
   const { year } = parseMonth(yearStartMonth);
   for (let monthIndex = 0; monthIndex < 12; monthIndex += 1) {
     const month = formatMonth(year, monthIndex);
     if (compareMonth(month, yearStartMonth) < 0 || compareMonth(month, yearEndMonth) > 0) continue;
-    if (compareMonth(month, startDate) < 0) continue;
+    if (compareMonth(month, earliestStartDate) < 0) continue;
     activeMonths += 1;
   }
   return activeMonths;
 }
 
-function resolvePlanInstallmentStartMonth(plan) {
-  if (parseMonth(plan?.installmentStartDate)) return plan.installmentStartDate;
-  if (parseMonth(plan?.withdrawalStartDate)) return plan.withdrawalStartDate;
-  return "";
-}
-
-function resolvePlanInstallmentMode(plan) {
-  if (plan?.installmentMode === "amount" || plan?.installmentMode === "rate") return plan.installmentMode;
-  if (plan?.withdrawalMode === "amount" || plan?.withdrawalMode === "rate") return plan.withdrawalMode;
-  return "";
-}
-
-function resolvePlanInstallmentAmount(plan) {
-  if (Number.isFinite(Number(plan?.installmentAmount))) return Math.max(Number(plan.installmentAmount), 0);
-  return Math.max(Number(plan?.withdrawalAmount) || 0, 0);
-}
-
-function resolvePlanInstallmentRateDecimal(plan) {
-  const sourceRate = plan?.installmentRate ?? plan?.withdrawalRate;
-  return Math.max(parseRateInput(sourceRate), 0) / 100;
+function resolvePlanInstallmentScenarios(plan) {
+  if (typeof plan?.useInstallment === "boolean" && !plan.useInstallment) return [];
+  const fallbackScenario = {
+    startMonth: parseMonth(plan?.installmentStartDate) ? plan.installmentStartDate : plan?.withdrawalStartDate,
+    mode: plan?.installmentMode || plan?.withdrawalMode,
+    amount: plan?.installmentAmount ?? plan?.withdrawalAmount,
+    rate: plan?.installmentRate ?? plan?.withdrawalRate,
+  };
+  return normalizeWithdrawalSplitScenarios(plan?.withdrawalSplitScenarios, fallbackScenario);
 }
 
 function resolvePlanLumpSumWithdrawalMode(plan) {
@@ -4468,10 +4513,7 @@ function simulatePlanMonthlyBalanceTrajectory(plan, birthDate, options = {}) {
   const openingBalance = Math.max(Number(options?.openingBalance), 0);
   let balance = Number.isFinite(openingBalance) ? openingBalance : resolvePlanInitialPrincipal(plan);
 
-  const installmentStartMonth = resolvePlanInstallmentStartMonth(plan);
-  const installmentMode = resolvePlanInstallmentMode(plan);
-  const installmentAmount = resolvePlanInstallmentAmount(plan);
-  const installmentRateDecimal = resolvePlanInstallmentRateDecimal(plan);
+  const installmentScenarios = resolvePlanInstallmentScenarios(plan);
   const lumpSumExecutionMonth = resolveWithdrawExecutionMonth(plan);
 
   let month = startMonth;
@@ -4493,20 +4535,22 @@ function simulatePlanMonthlyBalanceTrajectory(plan, birthDate, options = {}) {
     let balanceBeforeWithdrawal = Math.max(beginningBalance + contributionTotal, 0);
 
     let installmentWithdrawal = 0;
-    if (
-      includeInstallmentWithdrawal
-      && canApplyMonth
-      && installmentStartMonth
-      && compareMonth(month, installmentStartMonth) >= 0
-      && balanceBeforeWithdrawal > 0
-    ) {
-      if (installmentMode === "amount") {
-        installmentWithdrawal = Math.max(installmentAmount, 0) / 12;
-      } else if (installmentMode === "rate") {
-        installmentWithdrawal = balanceBeforeWithdrawal * Math.max(installmentRateDecimal, 0) / 12;
+    if (includeInstallmentWithdrawal && canApplyMonth && balanceBeforeWithdrawal > 0 && installmentScenarios.length > 0) {
+      const activeInstallmentScenarios = installmentScenarios.filter((scenario) => compareMonth(month, scenario.startMonth) >= 0);
+      if (activeInstallmentScenarios.length > 0) {
+        const amountScenarios = activeInstallmentScenarios.filter((scenario) => scenario.mode === "amount");
+        const firstRateScenario = activeInstallmentScenarios.find((scenario) => scenario.mode === "rate");
+        const amountWithdrawal = amountScenarios.reduce(
+          (sum, scenario) => sum + (Math.max(Number(scenario.amount) || 0, 0) / 12),
+          0
+        );
+        let rateWithdrawal = 0;
+        if (firstRateScenario) {
+          rateWithdrawal = balanceBeforeWithdrawal * (Math.max(parseRateInput(firstRateScenario.rate), 0) / 100) / 12;
+        }
+        installmentWithdrawal = Math.min(amountWithdrawal + rateWithdrawal, balanceBeforeWithdrawal);
+        balanceBeforeWithdrawal = Math.max(balanceBeforeWithdrawal - installmentWithdrawal, 0);
       }
-      installmentWithdrawal = Math.min(installmentWithdrawal, balanceBeforeWithdrawal);
-      balanceBeforeWithdrawal = Math.max(balanceBeforeWithdrawal - installmentWithdrawal, 0);
     }
 
     let lumpSumWithdrawal = 0;
@@ -5290,6 +5334,9 @@ function resolvePlanContributionEndMonth(plan) {
   const stopMonths = [];
   if (parseMonth(plan?.lumpSumDate)) stopMonths.push(plan.lumpSumDate);
   if (parseMonth(plan?.withdrawMonth)) stopMonths.push(plan.withdrawMonth);
+  resolvePlanInstallmentScenarios(plan).forEach((scenario) => {
+    if (parseMonth(scenario.startMonth)) stopMonths.push(scenario.startMonth);
+  });
   if (parseMonth(plan?.installmentStartDate)) stopMonths.push(plan.installmentStartDate);
   if (parseMonth(plan?.withdrawalStartDate)) stopMonths.push(plan.withdrawalStartDate);
   if (stopMonths.length === 0) return null;
@@ -6301,17 +6348,9 @@ function createPlanBlock(plan = {}) {
                   <input type="hidden" class="plan-use-installment" value="${normalizedPlan.useInstallment ? "true" : "false"}" />
                 </div>
                 <div class="plan-withdrawal-block-fields plan-withdrawal-installment-fields">
-                  <label>分割開始年月<input class="plan-installment-start-month" type="month" value="${normalizedPlan.installmentStartDate || ""}" /></label>
-                  <div class="plan-sub-segment-wrap">
-                    <p class="plan-sub-segment-label">分割方式</p>
-                    <div class="plan-segment-control plan-installment-mode-control" role="group" aria-label="分割方式">
-                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "amount" ? " is-active" : ""}" data-installment-mode="amount">金額</button>
-                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.installmentMode === "rate" ? " is-active" : ""}" data-installment-mode="rate">率</button>
-                    </div>
-                  </div>
-                  <input type="hidden" class="plan-installment-mode" value="${normalizedPlan.installmentMode}" />
-                  <label class="plan-installment-amount-wrap">年間取崩額<input class="plan-installment-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.installmentAmount) ? numberWithComma.format(normalizedPlan.installmentAmount) : ""}" /></label>
-                  <label class="plan-installment-rate-wrap">年間取崩率(%)<input class="plan-installment-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.installmentRate) ? normalizedPlan.installmentRate : ""}" /></label>
+                  <div class="plan-installment-scenario-list"></div>
+                  <button type="button" class="small plan-installment-add-scenario">シナリオを追加</button>
+                  <p class="plan-installment-rate-note" role="status" aria-live="polite"></p>
                 </div>
               </section>
             </section>
@@ -6359,19 +6398,21 @@ function createPlanBlock(plan = {}) {
   const lumpSumRateWrap = wrap.querySelector(".plan-lump-sum-rate-wrap");
   const lumpSumAmountField = wrap.querySelector(".plan-lump-sum-amount");
   const lumpSumRateField = wrap.querySelector(".plan-lump-sum-rate");
-  const installmentModeField = wrap.querySelector(".plan-installment-mode");
-  const installmentModeButtons = Array.from(wrap.querySelectorAll("[data-installment-mode]"));
   const installmentFieldsWrap = wrap.querySelector(".plan-withdrawal-installment-fields");
-  const installmentAmountWrap = wrap.querySelector(".plan-installment-amount-wrap");
-  const installmentRateWrap = wrap.querySelector(".plan-installment-rate-wrap");
-  const installmentAmountField = wrap.querySelector(".plan-installment-amount");
-  const installmentRateField = wrap.querySelector(".plan-installment-rate");
+  const installmentScenarioList = wrap.querySelector(".plan-installment-scenario-list");
+  const installmentAddScenarioButton = wrap.querySelector(".plan-installment-add-scenario");
+  const installmentRateNote = wrap.querySelector(".plan-installment-rate-note");
   const title = wrap.querySelector(".plan-card-title");
   const tag = wrap.querySelector(".plan-card-tag");
   setupFormattedAmountInput(initialPrincipalAtStartMonthField, { allowZero: true });
   setupFormattedAmountInput(currentValueField);
   setupFormattedAmountInput(lumpSumAmountField);
-  setupFormattedAmountInput(installmentAmountField);
+  const installmentScenarios = normalizeWithdrawalSplitScenarios(normalizedPlan.withdrawalSplitScenarios, {
+    startMonth: normalizedPlan.installmentStartDate,
+    mode: normalizedPlan.installmentMode,
+    amount: normalizedPlan.installmentAmount,
+    rate: normalizedPlan.installmentRate,
+  });
 
   const refreshAutoYield = () => {
     const draftPlan = {
@@ -6440,6 +6481,16 @@ function createPlanBlock(plan = {}) {
     const enabled = useInstallmentField?.value === "true";
     setSegmentActiveState(useInstallmentButtons, String(enabled), (button) => button.dataset.useInstallment);
     setFieldVisibility(installmentFieldsWrap, enabled);
+    if (enabled && installmentScenarios.length === 0) {
+      installmentScenarios.push({
+        id: crypto.randomUUID(),
+        startMonth: "",
+        mode: "amount",
+        amount: null,
+        rate: null,
+      });
+      renderInstallmentScenarios();
+    }
   };
   const syncLumpSumModeFields = () => {
     const mode = lumpSumModeField?.value || "amount";
@@ -6447,11 +6498,61 @@ function createPlanBlock(plan = {}) {
     setFieldVisibility(lumpSumAmountWrap, mode === "amount");
     setFieldVisibility(lumpSumRateWrap, mode === "rate");
   };
-  const syncInstallmentModeFields = () => {
-    const mode = installmentModeField?.value || "amount";
-    setSegmentActiveState(installmentModeButtons, mode, (button) => button.dataset.installmentMode);
-    setFieldVisibility(installmentAmountWrap, mode === "amount");
-    setFieldVisibility(installmentRateWrap, mode === "rate");
+  const updateInstallmentRateNote = () => {
+    if (!installmentRateNote) return;
+    const activeRateCount = installmentScenarios.filter((scenario) => scenario.mode === "rate").length;
+    installmentRateNote.textContent = activeRateCount > 1
+      ? "※率方式は先頭シナリオのみ計算対象です。2件目以降の率方式は保存されますが計算には使いません。"
+      : "";
+  };
+  const collectInstallmentScenariosFromDom = () => {
+    if (!installmentScenarioList) return [];
+    return Array.from(installmentScenarioList.querySelectorAll(".plan-installment-scenario")).map((scenarioNode) => {
+      const startMonthRaw = scenarioNode.querySelector(".plan-installment-start-month")?.value || "";
+      const mode = scenarioNode.querySelector(".plan-installment-mode")?.value === "rate" ? "rate" : "amount";
+      const amount = parseOptionalAmountInput(scenarioNode.querySelector(".plan-installment-amount")?.value);
+      const rate = parseOptionalRateInput(scenarioNode.querySelector(".plan-installment-rate")?.value);
+      return {
+        id: scenarioNode.dataset.scenarioId || crypto.randomUUID(),
+        startMonth: parseMonth(startMonthRaw) ? startMonthRaw : "",
+        mode,
+        amount: mode === "amount" ? amount : null,
+        rate: mode === "rate" ? rate : null,
+      };
+    });
+  };
+  const renderInstallmentScenarios = () => {
+    if (!installmentScenarioList) return;
+    installmentScenarioList.innerHTML = "";
+    installmentScenarios.forEach((scenario, index) => {
+      const scenarioItem = document.createElement("section");
+      scenarioItem.className = "plan-installment-scenario";
+      scenarioItem.dataset.scenarioId = scenario.id;
+      const canDelete = installmentScenarios.length > 1;
+      scenarioItem.innerHTML = `
+        <div class="plan-installment-scenario-header">
+          <p class="plan-installment-scenario-title">シナリオ${index + 1}</p>
+          <button type="button" class="small danger plan-installment-remove-scenario"${canDelete ? "" : " hidden"}>削除</button>
+        </div>
+        <label>分割開始年月<input class="plan-installment-start-month" type="month" value="${scenario.startMonth || ""}" /></label>
+        <div class="plan-sub-segment-wrap">
+          <p class="plan-sub-segment-label">分割方式</p>
+          <div class="plan-segment-control plan-installment-mode-control" role="group" aria-label="分割方式">
+            <button type="button" class="plan-segment-button plan-segment-button-sm${scenario.mode === "amount" ? " is-active" : ""}" data-installment-mode="amount">金額</button>
+            <button type="button" class="plan-segment-button plan-segment-button-sm${scenario.mode === "rate" ? " is-active" : ""}" data-installment-mode="rate">率</button>
+          </div>
+        </div>
+        <input type="hidden" class="plan-installment-mode" value="${scenario.mode}" />
+        <label class="plan-installment-amount-wrap"${scenario.mode === "amount" ? "" : " hidden"}>年間取崩額<input class="plan-installment-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(Number(scenario.amount)) ? numberWithComma.format(Number(scenario.amount)) : ""}" /></label>
+        <label class="plan-installment-rate-wrap"${scenario.mode === "rate" ? "" : " hidden"}>年間取崩率(%)<input class="plan-installment-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(Number(scenario.rate)) ? Number(scenario.rate) : ""}" /></label>
+      `;
+      installmentScenarioList.appendChild(scenarioItem);
+      setupFormattedAmountInput(scenarioItem.querySelector(".plan-installment-amount"));
+    });
+    if (installmentAddScenarioButton) {
+      installmentAddScenarioButton.hidden = installmentScenarios.length >= MAX_WITHDRAWAL_SPLIT_SCENARIOS;
+    }
+    updateInstallmentRateNote();
   };
   useLumpSumButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -6474,12 +6575,43 @@ function createPlanBlock(plan = {}) {
       syncLumpSumModeFields();
     });
   });
-  installmentModeButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const nextMode = button.dataset.installmentMode || "amount";
-      if (installmentModeField) installmentModeField.value = nextMode;
-      syncInstallmentModeFields();
+  installmentScenarioList?.addEventListener("click", (event) => {
+    const modeButton = event.target.closest("[data-installment-mode]");
+    const removeButton = event.target.closest(".plan-installment-remove-scenario");
+    const scenarioNode = event.target.closest(".plan-installment-scenario");
+    if (!scenarioNode) return;
+    const scenarioId = scenarioNode.dataset.scenarioId;
+    const index = installmentScenarios.findIndex((scenario) => scenario.id === scenarioId);
+    if (index < 0) return;
+    if (modeButton) {
+      const nextMode = modeButton.dataset.installmentMode === "rate" ? "rate" : "amount";
+      installmentScenarios[index] = {
+        ...installmentScenarios[index],
+        mode: nextMode,
+      };
+      renderInstallmentScenarios();
+      return;
+    }
+    if (removeButton && installmentScenarios.length > 1) {
+      installmentScenarios.splice(index, 1);
+      renderInstallmentScenarios();
+    }
+  });
+  installmentScenarioList?.addEventListener("change", () => {
+    const latest = collectInstallmentScenariosFromDom();
+    installmentScenarios.splice(0, installmentScenarios.length, ...latest);
+    renderInstallmentScenarios();
+  });
+  installmentAddScenarioButton?.addEventListener("click", () => {
+    if (installmentScenarios.length >= MAX_WITHDRAWAL_SPLIT_SCENARIOS) return;
+    installmentScenarios.push({
+      id: crypto.randomUUID(),
+      startMonth: "",
+      mode: "amount",
+      amount: null,
+      rate: null,
     });
+    renderInstallmentScenarios();
   });
   wrap.dataset.planExpanded = "true";
   wrap.classList.add("is-expanded");
@@ -6487,7 +6619,7 @@ function createPlanBlock(plan = {}) {
   refreshAutoYield();
   resetPlanWithdrawalToggleState(wrap);
   syncLumpSumModeFields();
-  syncInstallmentModeFields();
+  renderInstallmentScenarios();
 
   wrap.querySelector(".add-lump").addEventListener("click", () => {
     lumpList.appendChild(createHistoryRow({ type: "lump", onChange: refreshAutoYield }));
@@ -6655,6 +6787,21 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
       const installmentMode = block.querySelector(".plan-installment-mode")?.value || "amount";
       const installmentAmount = parseOptionalAmountInput(block.querySelector(".plan-installment-amount")?.value);
       const installmentRate = parseOptionalRateInput(block.querySelector(".plan-installment-rate")?.value);
+      const withdrawalSplitScenarios = Array.from(block.querySelectorAll(".plan-installment-scenario"))
+        .map((scenarioNode) => {
+          const startMonthRaw = scenarioNode.querySelector(".plan-installment-start-month")?.value || "";
+          const modeRaw = scenarioNode.querySelector(".plan-installment-mode")?.value || "amount";
+          const mode = modeRaw === "rate" ? "rate" : "amount";
+          const amount = parseOptionalAmountInput(scenarioNode.querySelector(".plan-installment-amount")?.value);
+          const rate = parseOptionalRateInput(scenarioNode.querySelector(".plan-installment-rate")?.value);
+          return {
+            id: scenarioNode.dataset.scenarioId || crypto.randomUUID(),
+            startMonth: parseMonth(startMonthRaw) ? startMonthRaw : "",
+            mode,
+            amount: mode === "amount" ? amount : null,
+            rate: mode === "rate" ? rate : null,
+          };
+        });
 
       return {
         id: block.querySelector(".plan-id").value,
@@ -6681,6 +6828,14 @@ function collectPlansFromForm(editorList = planEditorList || assetPlanEditorList
         installmentMode: useInstallment ? installmentMode : "",
         installmentAmount: useInstallment && installmentMode === "amount" ? installmentAmount : null,
         installmentRate: useInstallment && installmentMode === "rate" ? installmentRate : null,
+        withdrawalSplitScenarios: useInstallment
+          ? normalizeWithdrawalSplitScenarios(withdrawalSplitScenarios, {
+            startMonth: installmentStartDate,
+            mode: installmentMode,
+            amount: installmentAmount,
+            rate: installmentRate,
+          })
+          : [],
         hybridLumpSumDate: useLumpSum ? lumpSumDate : "",
         hybridLumpSumMode: useLumpSum ? lumpSumMode : "amount",
         hybridLumpSumAmount: useLumpSum && lumpSumMode === "amount" ? lumpSumAmount : null,

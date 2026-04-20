@@ -1766,6 +1766,41 @@ button.plan-card-trigger {
   width: 100%;
 }
 
+.plan-installment-scenario-list {
+  display: grid;
+  gap: 10px;
+}
+
+.plan-installment-scenario {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d9e5f1;
+  border-radius: 10px;
+  background: #f9fcff;
+}
+
+.plan-installment-scenario-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.plan-installment-scenario-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #274765;
+}
+
+.plan-installment-rate-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #866200;
+}
+
 .change-wrap {
   border-top: 1px dashed #d2ddea;
   padding-top: 10px;

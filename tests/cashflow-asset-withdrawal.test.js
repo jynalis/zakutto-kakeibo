@@ -204,6 +204,67 @@ assert.strictEqual(typeof calculateAssetFormationBalanceAtAgeYearEnd, 'function'
   assert.strictEqual(transfers[2026], 46482);
 })();
 
+(function testMultipleSplitScenariosAmountAreSummedByStartOrder() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'multi-amount',
+          expectedReturn: 0,
+          currentValue: 2000000,
+          initialPrincipalAtStartMonth: 2000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          useInstallment: true,
+          withdrawalSplitScenarios: [
+            { id: 's2', startMonth: '2025-07', mode: 'amount', amount: 240000 },
+            { id: 's1', startMonth: '2025-01', mode: 'amount', amount: 120000 },
+          ],
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2026,
+    startMonth: '2025-01',
+    referenceMonth: '2026-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2025], 240000);
+  assert.strictEqual(transfers[2026], 360000);
+})();
+
+(function testMultipleSplitScenariosRateUsesOnlyFirstRateScenario() {
+  const transfers = buildAnnualAssetWithdrawalTransfersByYear({
+    settings: {
+      birthDate: '1990-01-01',
+      plans: [
+        {
+          id: 'multi-rate',
+          expectedReturn: 0,
+          currentValue: 1000000,
+          initialPrincipalAtStartMonth: 1000000,
+          monthlyContributions: [],
+          lumpSums: [],
+          useInstallment: true,
+          withdrawalSplitScenarios: [
+            { id: 's1', startMonth: '2025-01', mode: 'rate', rate: 5 },
+            { id: 's2', startMonth: '2025-01', mode: 'rate', rate: 5 },
+          ],
+        },
+      ],
+    },
+    startYear: 2025,
+    endYear: 2025,
+    startMonth: '2025-01',
+    referenceMonth: '2025-12',
+    targetAge: 100,
+  });
+
+  assert.strictEqual(transfers[2025], 48870);
+})();
+
 (function testLumpSumRateModeReadsLumpSumDateAndCapsAtBalance() {
   const transfers = buildAnnualAssetWithdrawalTransfersByYear({
     settings: {
