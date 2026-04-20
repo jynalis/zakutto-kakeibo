@@ -1152,7 +1152,15 @@ function normalizeWithdrawalSplitScenarios(rawScenarios, fallbackScenario = null
     .filter((scenario) => scenario && parseMonth(scenario.startMonth) && (scenario.mode === "amount" || scenario.mode === "rate"))
     .sort((a, b) => compareMonth(a.startMonth, b.startMonth) || (a.__inputOrder - b.__inputOrder))
     .slice(0, MAX_WITHDRAWAL_SPLIT_SCENARIOS)
-    .map(({ __inputOrder, ...scenario }) => scenario);
+    .map(({ __inputOrder, ...scenario }) => scenario)
+    .map((scenario, index) => {
+      if (index === 0) return scenario;
+      return {
+        ...scenario,
+        mode: "amount",
+        rate: null,
+      };
+    });
   return normalized;
 }
 
@@ -6525,6 +6533,8 @@ function createPlanBlock(plan = {}) {
     if (!installmentScenarioList) return;
     installmentScenarioList.innerHTML = "";
     installmentScenarios.forEach((scenario, index) => {
+      const isPrimaryScenario = index === 0;
+      const effectiveMode = isPrimaryScenario ? (scenario.mode === "rate" ? "rate" : "amount") : "amount";
       const scenarioItem = document.createElement("section");
       scenarioItem.className = "plan-installment-scenario";
       scenarioItem.dataset.scenarioId = scenario.id;
@@ -6535,16 +6545,20 @@ function createPlanBlock(plan = {}) {
           <button type="button" class="small danger plan-installment-remove-scenario"${canDelete ? "" : " hidden"}>削除</button>
         </div>
         <label>分割開始年月<input class="plan-installment-start-month" type="month" value="${scenario.startMonth || ""}" /></label>
-        <div class="plan-sub-segment-wrap">
+        ${isPrimaryScenario
+    ? `<div class="plan-sub-segment-wrap">
           <p class="plan-sub-segment-label">分割方式</p>
           <div class="plan-segment-control plan-installment-mode-control" role="group" aria-label="分割方式">
-            <button type="button" class="plan-segment-button plan-segment-button-sm${scenario.mode === "amount" ? " is-active" : ""}" data-installment-mode="amount">金額</button>
-            <button type="button" class="plan-segment-button plan-segment-button-sm${scenario.mode === "rate" ? " is-active" : ""}" data-installment-mode="rate">率</button>
+            <button type="button" class="plan-segment-button plan-segment-button-sm${effectiveMode === "amount" ? " is-active" : ""}" data-installment-mode="amount">金額</button>
+            <button type="button" class="plan-segment-button plan-segment-button-sm${effectiveMode === "rate" ? " is-active" : ""}" data-installment-mode="rate">率</button>
           </div>
-        </div>
-        <input type="hidden" class="plan-installment-mode" value="${scenario.mode}" />
-        <label class="plan-installment-amount-wrap"${scenario.mode === "amount" ? "" : " hidden"}>年間取崩額<input class="plan-installment-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(Number(scenario.amount)) ? numberWithComma.format(Number(scenario.amount)) : ""}" /></label>
-        <label class="plan-installment-rate-wrap"${scenario.mode === "rate" ? "" : " hidden"}>年間取崩率(%)<input class="plan-installment-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(Number(scenario.rate)) ? Number(scenario.rate) : ""}" /></label>
+        </div>`
+    : ""}
+        <input type="hidden" class="plan-installment-mode" value="${effectiveMode}" />
+        <label class="plan-installment-amount-wrap"${effectiveMode === "amount" ? "" : " hidden"}>年間取崩額<input class="plan-installment-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(Number(scenario.amount)) ? numberWithComma.format(Number(scenario.amount)) : ""}" /></label>
+        ${isPrimaryScenario
+    ? `<label class="plan-installment-rate-wrap"${effectiveMode === "rate" ? "" : " hidden"}>年間取崩率(%)<input class="plan-installment-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(Number(scenario.rate)) ? Number(scenario.rate) : ""}" /></label>`
+    : ""}
       `;
       installmentScenarioList.appendChild(scenarioItem);
       setupFormattedAmountInput(scenarioItem.querySelector(".plan-installment-amount"));
@@ -6584,6 +6598,7 @@ function createPlanBlock(plan = {}) {
     const index = installmentScenarios.findIndex((scenario) => scenario.id === scenarioId);
     if (index < 0) return;
     if (modeButton) {
+      if (index !== 0) return;
       const nextMode = modeButton.dataset.installmentMode === "rate" ? "rate" : "amount";
       installmentScenarios[index] = {
         ...installmentScenarios[index],
@@ -6597,10 +6612,45 @@ function createPlanBlock(plan = {}) {
       renderInstallmentScenarios();
     }
   });
-  installmentScenarioList?.addEventListener("change", () => {
+  installmentScenarioList?.addEventListener("input", (event) => {
+    const scenarioNode = event.target.closest(".plan-installment-scenario");
+    if (!scenarioNode) return;
+    const scenarioId = scenarioNode.dataset.scenarioId;
+    const index = installmentScenarios.findIndex((scenario) => scenario.id === scenarioId);
+    if (index < 0) return;
+    const amountField = event.target.closest(".plan-installment-amount");
+    const rateField = event.target.closest(".plan-installment-rate");
+    if (amountField) {
+      installmentScenarios[index] = {
+        ...installmentScenarios[index],
+        amount: parseOptionalAmountInput(amountField.value),
+      };
+      return;
+    }
+    if (rateField && index === 0) {
+      installmentScenarios[index] = {
+        ...installmentScenarios[index],
+        rate: parseOptionalRateInput(rateField.value),
+      };
+    }
+  });
+  installmentScenarioList?.addEventListener("change", (event) => {
+    const scenarioNode = event.target.closest(".plan-installment-scenario");
+    if (!scenarioNode) return;
+    const scenarioId = scenarioNode.dataset.scenarioId;
+    const index = installmentScenarios.findIndex((scenario) => scenario.id === scenarioId);
+    if (index < 0) return;
+    const startMonthField = event.target.closest(".plan-installment-start-month");
+    if (startMonthField) {
+      const startMonthRaw = startMonthField.value || "";
+      installmentScenarios[index] = {
+        ...installmentScenarios[index],
+        startMonth: parseMonth(startMonthRaw) ? startMonthRaw : "",
+      };
+      return;
+    }
     const latest = collectInstallmentScenariosFromDom();
     installmentScenarios.splice(0, installmentScenarios.length, ...latest);
-    renderInstallmentScenarios();
   });
   installmentAddScenarioButton?.addEventListener("click", () => {
     if (installmentScenarios.length >= MAX_WITHDRAWAL_SPLIT_SCENARIOS) return;
