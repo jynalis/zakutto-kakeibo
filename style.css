@@ -4246,7 +4246,17 @@ body.is-keyboard-open .floating-top-button {
     justify-content: stretch;
   }
 
-  .cashflow-actions button {
+.cashflow-actions button {
     width: 100%;
   }
+}
+
+.pdf-render-root {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+  width: 794px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: -1;
 }

@@ -142,6 +142,7 @@ const cashflowExpenseScenarioList = document.getElementById("cashflow-expense-sc
 const cashflowExpenseScenarioAddButton = document.getElementById("cashflow-expense-scenario-add");
 const cashflowTableWrap = document.getElementById("cashflow-table-wrap");
 const cashflowDownloadPdfButton = document.getElementById("cashflow-download-pdf-button");
+const pdfRenderRoot = document.getElementById("pdf-render-root");
 const cashflowSubTabs = Array.from(document.querySelectorAll("[data-cashflow-sub-tab]"));
 const cashflowSubPanels = Array.from(document.querySelectorAll("[data-cashflow-sub-panel]"));
 const memoModal = document.getElementById("memo-modal");
@@ -348,6 +349,7 @@ const DASHBOARD_ASSET_GROWTH_METRICS = {
     ariaLabel: "年ごとの金融資産合計棒グラフ",
   },
 };
+const PDF_EXPORT_MODE = "full";
 
 const yen = new Intl.NumberFormat("ja-JP", {
   style: "currency",
@@ -3784,9 +3786,8 @@ function buildDashboardAssetGrowthPoints(cashflowRows, metricKey, targetAge = DA
   });
 }
 
-function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBalance") {
-  if (!dashboardAssetFormationChart) return;
-  dashboardAssetFormationChart.innerHTML = "";
+function createDashboardAssetFormationChartLayout(cashflowRows, metricKey = "endingBalance", options = {}) {
+  const interactive = options.interactive !== false;
   const metric = DASHBOARD_ASSET_GROWTH_METRICS[metricKey] || DASHBOARD_ASSET_GROWTH_METRICS.endingBalance;
   const points = buildDashboardAssetGrowthPoints(
     cashflowRows,
@@ -3800,8 +3801,7 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
     const empty = document.createElement("p");
     empty.className = "chart-empty";
     empty.textContent = metric.emptyText;
-    dashboardAssetFormationChart.appendChild(empty);
-    return;
+    return empty;
   }
 
   const BAR_WIDTH_PX = 24;
@@ -3838,26 +3838,27 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
 
   const svgNS = "http://www.w3.org/2000/svg";
   const hidePressedValue = () => {
+    if (!(options.host instanceof HTMLElement)) return;
     selectedBarIndex = null;
-    const tooltip = dashboardAssetFormationChart.querySelector(".dashboard-bar-chart-press-tooltip");
+    const tooltip = options.host.querySelector(".dashboard-bar-chart-press-tooltip");
     if (!tooltip) return;
     tooltip.classList.remove("is-visible");
     tooltip.textContent = "";
   };
   const showPressedValue = (barElement, age, amount, index) => {
-    if (!(barElement instanceof SVGRectElement) || !dashboardAssetFormationChart) return;
+    if (!(barElement instanceof SVGRectElement) || !(options.host instanceof HTMLElement)) return;
     selectedBarIndex = index;
-    let tooltip = dashboardAssetFormationChart.querySelector(".dashboard-bar-chart-press-tooltip");
+    let tooltip = options.host.querySelector(".dashboard-bar-chart-press-tooltip");
     if (!(tooltip instanceof HTMLElement)) {
       tooltip = document.createElement("p");
       tooltip.className = "dashboard-bar-chart-press-tooltip";
       tooltip.setAttribute("aria-live", "polite");
-      dashboardAssetFormationChart.appendChild(tooltip);
+      options.host.appendChild(tooltip);
     }
     tooltip.textContent = `${age}歳 ${numberWithComma.format(amount)}円`;
     tooltip.classList.add("is-visible");
 
-    const chartRect = dashboardAssetFormationChart.getBoundingClientRect();
+    const chartRect = options.host.getBoundingClientRect();
     const barRect = barElement.getBoundingClientRect();
     const barCenterX = barRect.left - chartRect.left + barRect.width / 2;
     const topPadding = 8;
@@ -3935,20 +3936,22 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
     if (isNegativeBar) {
       rect.classList.add("is-negative");
     }
-    rect.setAttribute("tabindex", "0");
-    rect.setAttribute("role", "button");
-    rect.setAttribute("aria-label", `${point.age}歳 ${numberWithComma.format(amount)}円`);
-    rect.addEventListener("click", () => {
-      togglePressedValue(rect, point.age, amount, index);
-    });
-    rect.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
+    if (interactive) {
+      rect.setAttribute("tabindex", "0");
+      rect.setAttribute("role", "button");
+      rect.setAttribute("aria-label", `${point.age}歳 ${numberWithComma.format(amount)}円`);
+      rect.addEventListener("click", () => {
         togglePressedValue(rect, point.age, amount, index);
-      } else if (event.key === "Escape") {
-        hidePressedValue();
-      }
-    });
+      });
+      rect.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          togglePressedValue(rect, point.age, amount, index);
+        } else if (event.key === "Escape") {
+          hidePressedValue();
+        }
+      });
+    }
     plotSvg.appendChild(rect);
 
     const xLabel = document.createElementNS(svgNS, "text");
@@ -3986,10 +3989,12 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
 
   const chartLayout = document.createElement("div");
   chartLayout.className = "dashboard-asset-formation-chart-layout";
-  chartLayout.addEventListener("click", (event) => {
-    if (event.target instanceof Element && event.target.closest(".dashboard-bar-chart-bar")) return;
-    hidePressedValue();
-  });
+  if (interactive) {
+    chartLayout.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest(".dashboard-bar-chart-bar")) return;
+      hidePressedValue();
+    });
+  }
   const fixedAxisPane = document.createElement("div");
   fixedAxisPane.className = "dashboard-asset-formation-chart-fixed-axis";
   fixedAxisPane.appendChild(yAxisSvg);
@@ -3997,14 +4002,26 @@ function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBal
 
   const scrollPane = document.createElement("div");
   scrollPane.className = "dashboard-asset-formation-chart-scroll-pane";
-  scrollPane.addEventListener("scroll", hidePressedValue, { passive: true });
-  scrollPane.addEventListener("touchmove", hidePressedValue, { passive: true });
+  if (interactive) {
+    scrollPane.addEventListener("scroll", hidePressedValue, { passive: true });
+    scrollPane.addEventListener("touchmove", hidePressedValue, { passive: true });
+  }
   const scrollContent = document.createElement("div");
   scrollContent.className = "dashboard-asset-formation-chart-scroll-content";
   scrollContent.style.minWidth = `${minScrollableWidth}px`;
   scrollContent.appendChild(plotSvg);
   scrollPane.appendChild(scrollContent);
   chartLayout.appendChild(scrollPane);
+  return chartLayout;
+}
+
+function renderDashboardAssetFormationChart(cashflowRows, metricKey = "endingBalance") {
+  if (!dashboardAssetFormationChart) return;
+  dashboardAssetFormationChart.innerHTML = "";
+  const chartLayout = createDashboardAssetFormationChartLayout(cashflowRows, metricKey, {
+    interactive: true,
+    host: dashboardAssetFormationChart,
+  });
   dashboardAssetFormationChart.appendChild(chartLayout);
 }
 
@@ -5202,7 +5219,7 @@ function renderCashflowTable({ settings, transactions, recurringExpenses, lifeEv
   cashflowTableWrap.appendChild(shell);
 }
 
-function downloadCashflowPdf() {
+function downloadCashflowPdfLegacy() {
   const settings = loadSettings();
   const transactions = loadTransactions();
   const recurringExpenses = loadRecurringExpenses();
@@ -5255,6 +5272,211 @@ function downloadCashflowPdf() {
   win.document.close();
   win.focus();
   win.print();
+}
+
+function collectFullReportPdfData() {
+  const settings = loadSettings();
+  const transactions = loadTransactions();
+  const recurringExpenses = loadRecurringExpenses();
+  const lifeEvents = loadLifeEvents();
+  const assumptions = loadCashflowAssumptions();
+  const cashflowRows = buildCashflowRows({ settings, transactions, recurringExpenses, lifeEvents, assumptions });
+  const averageTargetMonths = resolveAverageTargetMonths(settings, transactions);
+  const averageDataset = buildAverageModeDataset(settings, transactions, averageTargetMonths);
+  const currentAssetTargetMonth = resolveCurrentAssetTargetMonth();
+  const currentAssetBaseDate = todayISO();
+  const currentAssetRows = buildCurrentAssetGraphRows(settings, currentAssetTargetMonth, { asOfDate: currentAssetBaseDate });
+  const currentAssetEntries = currentAssetRows
+    .filter((plan) => plan.currentAmount > 0)
+    .map((plan) => [`${plan.type}${plan.name ? `（${plan.name}）` : ""}`, plan.currentAmount]);
+  const currentAssetTotal = currentAssetEntries.reduce((sum, [, amount]) => sum + amount, 0);
+  const secondaryAssetOutlook = buildAssetOutlookAtAge({
+    settings,
+    transactions,
+    recurringExpenses,
+    lifeEvents,
+    assumptions,
+    targetAge: DASHBOARD_ASSET_OUTLOOK_TARGET_AGE,
+    useYearEndReference: true,
+  });
+  const age64Entries = secondaryAssetOutlook.contractEntriesAtAge;
+  const age64Total = secondaryAssetOutlook.contractTotalAtAge;
+  const age64Row = findCashflowRowByAge(cashflowRows, DASHBOARD_ASSET_OUTLOOK_TARGET_AGE) || null;
+  const reportData = {
+    settings,
+    assumptions,
+    cashflowRows,
+    dashboardGraphs: {
+      balance: buildDashboardAssetGrowthPoints(cashflowRows, "endingBalance"),
+      assetFormation: buildDashboardAssetGrowthPoints(cashflowRows, "assetFormationBalance"),
+      financialAssets: buildDashboardAssetGrowthPoints(cashflowRows, "financialAssetTotal"),
+    },
+    currentEstimate: {
+      baseDate: currentAssetBaseDate,
+      targetMonth: currentAssetTargetMonth,
+      entries: currentAssetEntries,
+      total: currentAssetTotal,
+    },
+    age64YearEndBalance: {
+      label: "64歳年末時残高",
+      targetMonth: secondaryAssetOutlook.targetMonth,
+      entries: age64Entries,
+      total: age64Total,
+      row: age64Row,
+    },
+    averageExpense: {
+      monthCount: averageDataset.summary.monthCount,
+      totalExpense: averageDataset.expenseComposition.totalExpense,
+      entries: averageDataset.expenseComposition.entries,
+    },
+  };
+  console.debug("[pdf:full-report] collected", reportData);
+  return reportData;
+}
+
+function renderDashboardMetricChartForPdf(metricKey, cashflowRows) {
+  if (!(pdfRenderRoot instanceof HTMLElement)) return "";
+  const host = document.createElement("div");
+  host.className = "pdf-dashboard-chart-host";
+  const chart = createDashboardAssetFormationChartLayout(cashflowRows, metricKey, {
+    interactive: false,
+    host,
+  });
+  host.appendChild(chart);
+  pdfRenderRoot.appendChild(host);
+  const html = host.innerHTML;
+  host.remove();
+  return html;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildPieChartSectionHtml(entries, total, { centerLabel = "合計", emptyText = "データがありません。", title = "" } = {}) {
+  const normalizedEntries = Array.isArray(entries) ? entries.filter((item) => Number(item?.[1]) > 0) : [];
+  if (normalizedEntries.length === 0 || total <= 0) {
+    return `<div class="pdf-card"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(emptyText)}</p></div>`;
+  }
+  let degree = 0;
+  const segments = normalizedEntries.map(([, amount], index) => {
+    const start = degree;
+    degree += (amount / total) * 360;
+    return `${ASSET_PIE_COLORS[index % ASSET_PIE_COLORS.length]} ${start}deg ${degree}deg`;
+  }).join(", ");
+  const legendHtml = normalizedEntries.map(([name, amount], index) => {
+    const ratio = total === 0 ? 0 : (amount / total) * 100;
+    return `<li><span><i style="background:${ASSET_PIE_COLORS[index % ASSET_PIE_COLORS.length]}"></i>${escapeHtml(name)}</span><strong>${yen.format(amount)} (${ratio.toFixed(1)}%)</strong></li>`;
+  }).join("");
+  return `
+    <div class="pdf-card">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="pdf-pie-row">
+        <div class="pdf-pie" style="background: conic-gradient(${segments});">
+          <div class="pdf-pie-center"><span>${escapeHtml(centerLabel)}</span><strong>${yen.format(total)}</strong></div>
+        </div>
+        <ul class="pdf-legend">${legendHtml}</ul>
+      </div>
+    </div>
+  `;
+}
+
+function buildExpenseAverageSectionHtml(expenseAverage) {
+  if (!expenseAverage || expenseAverage.totalExpense <= 0 || !Array.isArray(expenseAverage.entries) || expenseAverage.entries.length === 0) {
+    return `<div class="pdf-card"><p>平均対象期間の支出データがありません。</p></div>`;
+  }
+  let degree = 0;
+  const segments = expenseAverage.entries.map((entry, index) => {
+    const start = degree;
+    degree += (entry.amount / expenseAverage.totalExpense) * 360;
+    return `${EXPENSE_CHART_COLORS[index % EXPENSE_CHART_COLORS.length]} ${start}deg ${degree}deg`;
+  }).join(", ");
+  const items = expenseAverage.entries.map((entry, index) => (
+    `<li><span><i style="background:${EXPENSE_CHART_COLORS[index % EXPENSE_CHART_COLORS.length]}"></i>${escapeHtml(entry.name)}</span><strong>${yen.format(entry.amount)} (${entry.ratio.toFixed(1)}%)</strong></li>`
+  )).join("");
+  return `
+    <div class="pdf-card">
+      <div class="pdf-pie-row">
+        <div class="pdf-pie" style="background: conic-gradient(${segments});">
+          <div class="pdf-pie-center"><span>月平均</span><strong>${yen.format(expenseAverage.totalExpense)}</strong></div>
+        </div>
+        <ul class="pdf-legend">${items}</ul>
+      </div>
+    </div>
+  `;
+}
+
+function downloadCashflowPdfFullReport() {
+  const reportData = collectFullReportPdfData();
+  if (!Array.isArray(reportData.cashflowRows) || reportData.cashflowRows.length === 0) return;
+  const generatedAt = new Date().toLocaleString("ja-JP");
+  const balanceChartHtml = renderDashboardMetricChartForPdf("endingBalance", reportData.cashflowRows);
+  const assetFormationChartHtml = renderDashboardMetricChartForPdf("assetFormationBalance", reportData.cashflowRows);
+  const financialAssetsChartHtml = renderDashboardMetricChartForPdf("financialAssetTotal", reportData.cashflowRows);
+  const cashflowBodyRows = reportData.cashflowRows.map((row) => `
+    <tr>
+      <td>${row.year}</td><td>${row.age}歳</td><td>${yen.format(row.annualIncome)}</td><td>${yen.format(row.annualAssetWithdrawalTransfer)}</td>
+      <td>${yen.format(row.annualRegularExpense)}</td><td>${yen.format(row.annualRecurringExpense)}</td><td>${yen.format(row.annualAssetFormationExpense)}</td>
+      <td>${yen.format(row.annualLumpInvestmentExpense)}</td><td>${yen.format(row.annualExtraIncome)}</td><td>${yen.format(row.annualExtraExpense)}</td>
+      <td>${yen.format(row.annualBalance)}</td><td>${yen.format(row.endingBalance)}</td><td>${yen.format(row.assetFormationBalance)}</td><td>${yen.format(row.financialAssetTotal)}</td>
+    </tr>
+  `).join("");
+  const pageHtml = `<!doctype html><html lang="ja"><head><meta charset="UTF-8"><title>家計レポート</title>
+  <style>
+    @page{size:A4 portrait;margin:12mm;} body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#1d2a3b;font-size:12px;}
+    .pdf-page{break-after:page;page-break-after:always;} .pdf-page:last-child{break-after:auto;page-break-after:auto;}
+    h1{font-size:20px;margin:0 0 8px;} h2{font-size:18px;margin:0 0 12px;} h3{font-size:14px;margin:0 0 8px;}
+    .meta{color:#475569;margin:0 0 12px;} .pdf-card{border:1px solid #d8e0ea;border-radius:10px;padding:12px;background:#fff;}
+    .metrics{margin:12px 0 0;padding-left:18px;} .metrics li{margin:4px 0;}
+    .dashboard-asset-formation-chart-layout{display:grid;grid-template-columns:84px 1fr;gap:8px;}
+    .dashboard-asset-formation-chart-scroll-pane{overflow:visible;} .dashboard-asset-formation-chart-scroll-content{min-width:0 !important;}
+    .dashboard-asset-formation-chart-svg,.dashboard-asset-formation-chart-y-axis-svg{height:280px;}
+    .pdf-pie-row{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:center;}
+    .pdf-pie{width:200px;height:200px;border-radius:50%;position:relative;}
+    .pdf-pie-center{position:absolute;inset:28%;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;}
+    .pdf-pie-center strong{font-size:13px;}
+    .pdf-legend{list-style:none;padding:0;margin:0;max-height:220px;overflow:hidden;}
+    .pdf-legend li{display:flex;justify-content:space-between;gap:10px;margin:4px 0;}
+    .pdf-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;} th,td{border:1px solid #cbd5e1;padding:4px 6px;white-space:nowrap;text-align:right;}
+    th{background:#e2e8f0;} td:first-child,td:nth-child(2){text-align:center;} tr{page-break-inside:avoid;}
+  </style></head><body>
+  <section class="pdf-page"><h1>家計レポート</h1><p class="meta">作成日時: ${generatedAt}</p><h2>残高</h2><div class="pdf-card">${balanceChartHtml}</div>
+  <ul class="metrics"><li>対象: 64歳までの年次推移</li><li>最新年の残高: ${yen.format(reportData.dashboardGraphs.balance.at(-1)?.amount || 0)}</li></ul></section>
+  <section class="pdf-page"><h2>資産形成</h2><div class="pdf-card">${assetFormationChartHtml}</div>
+  <ul class="metrics"><li>対象: 64歳までの年次推移</li><li>最新年の資産形成額: ${yen.format(reportData.dashboardGraphs.assetFormation.at(-1)?.amount || 0)}</li></ul></section>
+  <section class="pdf-page"><h2>金融試算</h2><div class="pdf-card">${financialAssetsChartHtml}</div>
+  <ul class="metrics"><li>対象: 64歳までの年次推移</li><li>最新年の金融資産合計: ${yen.format(reportData.dashboardGraphs.financialAssets.at(-1)?.amount || 0)}</li></ul></section>
+  <section class="pdf-page"><h2>現状試算</h2>
+  ${buildPieChartSectionHtml(reportData.currentEstimate.entries, reportData.currentEstimate.total, { title: "現状試算の構成", centerLabel: "現時点総額" })}
+  <ul class="metrics"><li>基準日: ${escapeHtml(reportData.currentEstimate.baseDate)}</li><li>評価月: ${escapeHtml(formatScheduledMonthLabel(reportData.currentEstimate.targetMonth))}</li><li>総額: ${yen.format(reportData.currentEstimate.total)}</li></ul></section>
+  <section class="pdf-page"><h2>64歳年末時残高</h2>
+  ${buildPieChartSectionHtml(reportData.age64YearEndBalance.entries, reportData.age64YearEndBalance.total, { title: "64歳年末時残高の構成", centerLabel: "64歳年末時点総額", emptyText: "64歳年末時残高の評価対象となる契約はありません。" })}
+  <ul class="metrics"><li>評価月: ${escapeHtml(formatScheduledMonthLabel(reportData.age64YearEndBalance.targetMonth))}</li><li>残高: ${yen.format(reportData.age64YearEndBalance.row?.endingBalance || 0)}</li><li>資産形成額: ${yen.format(reportData.age64YearEndBalance.row?.assetFormationBalance || 0)}</li></ul></section>
+  <section class="pdf-page"><h2>支出分析（平均）</h2>
+  ${buildExpenseAverageSectionHtml(reportData.averageExpense)}
+  <ul class="metrics"><li>表示モード: 平均</li><li>平均対象月数: ${numberWithComma.format(reportData.averageExpense.monthCount || 0)}か月</li><li>月平均支出: ${yen.format(reportData.averageExpense.totalExpense || 0)}</li></ul></section>
+  <section class="pdf-page"><h2>キャッシュフロー表</h2><table><thead><tr><th>年</th><th>年齢</th><th>年収</th><th>資産取崩金</th><th>通常支出</th><th>定期支出</th><th>積立支出</th><th>一括投資額</th><th>臨時収入</th><th>臨時支出</th><th>収支</th><th>残高</th><th>資産形成額</th><th>金融資産合計</th></tr></thead><tbody>${cashflowBodyRows}</tbody></table></section>
+  </body></html>`;
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(pageHtml);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+function downloadCashflowPdf() {
+  if (PDF_EXPORT_MODE === "legacy") {
+    downloadCashflowPdfLegacy();
+    return;
+  }
+  downloadCashflowPdfFullReport();
 }
 
 function parseBirthDate(birthDate) {
@@ -8089,6 +8311,8 @@ function init() {
   setupDashboardAssetGraphTabs();
   setDashboardAssetGraphTab("current-assets");
   assetGrowthMetricToggle?.addEventListener("click", handleAssetGrowthMetricToggleClick);
+  window.downloadCashflowPdfLegacy = downloadCashflowPdfLegacy;
+  window.downloadCashflowPdfFullReport = downloadCashflowPdfFullReport;
 
   render();
   scrollPrimaryMainTabToTop("dashboard", { behavior: "auto" });
