@@ -5343,23 +5343,55 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function splitByHalf(items) {
-  const normalized = Array.isArray(items) ? items : [];
-  const midpoint = Math.ceil(normalized.length / 2);
-  return [normalized.slice(0, midpoint), normalized.slice(midpoint)];
+function chooseBarRowCount(totalCount) {
+  if (!Number.isFinite(totalCount) || totalCount <= 0) return 1;
+  if (totalCount <= 18) return 1;
+  const twoRowSize = Math.ceil(totalCount / 2);
+  if (twoRowSize <= 22) return 2;
+  return 3;
 }
 
-function buildPdfBarRows(points, maxAmount) {
-  const safeMax = Number.isFinite(maxAmount) && maxAmount > 0 ? maxAmount : 1;
-  return points.map((point) => {
+function splitIntoBalancedRows(items, rowCount) {
+  const normalized = Array.isArray(items) ? items : [];
+  const safeRowCount = Math.max(1, Math.min(3, Number(rowCount) || 1));
+  const baseSize = Math.floor(normalized.length / safeRowCount);
+  const remainder = normalized.length % safeRowCount;
+  const rows = [];
+  let cursor = 0;
+  for (let index = 0; index < safeRowCount; index += 1) {
+    const size = baseSize + (index < remainder ? 1 : 0);
+    rows.push(normalized.slice(cursor, cursor + size));
+    cursor += size;
+  }
+  return rows.filter((row) => row.length > 0);
+}
+
+function formatPdfBarValue(amount) {
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  const abs = Math.abs(safeAmount);
+  if (abs >= 100000000) return `${(safeAmount / 100000000).toFixed(1)}億円`;
+  if (abs >= 10000) return `${(safeAmount / 10000).toFixed(1)}万円`;
+  return `${numberWithComma.format(Math.round(safeAmount))}円`;
+}
+
+function buildPdfBarRows(points, scale) {
+  const maxAbs = Number.isFinite(scale.maxAbs) && scale.maxAbs > 0 ? scale.maxAbs : 1;
+  const hasNegative = Boolean(scale.hasNegative);
+  const labelStep = points.length > 22 ? 3 : (points.length > 16 ? 2 : 1);
+  return points.map((point, itemIndex) => {
     const amount = Number(point?.amount);
     const safeAmount = Number.isFinite(amount) ? amount : 0;
-    const height = Math.max(6, Math.round((safeAmount / safeMax) * 120));
+    const height = Math.max(4, Math.round((Math.abs(safeAmount) / maxAbs) * 58));
+    const valueClass = safeAmount >= 0 ? "is-positive" : "is-negative";
+    const showYear = itemIndex % labelStep === 0;
     return `
       <div class="pdf-bar-item">
-        <div class="pdf-bar-value">${yen.format(safeAmount)}</div>
-        <div class="pdf-bar-track"><div class="pdf-bar-fill" style="height:${height}px;"></div></div>
-        <div class="pdf-bar-year">${escapeHtml(point?.year ?? "-")}年</div>
+        <div class="pdf-bar-value ${valueClass}">${escapeHtml(formatPdfBarValue(safeAmount))}</div>
+        <div class="pdf-bar-track ${hasNegative ? "has-negative" : "positive-only"}">
+          ${hasNegative ? "<span class=\"pdf-bar-zero\"></span>" : ""}
+          <div class="pdf-bar-fill ${valueClass}" style="height:${height}px;"></div>
+        </div>
+        <div class="pdf-bar-year ${showYear ? "" : "is-muted"}">${showYear ? `${escapeHtml(point?.year ?? "-")}年` : "…"}</div>
       </div>
     `;
   }).join("");
@@ -5371,14 +5403,18 @@ function buildBarChartSectionHtml(points, metricLabel) {
     return `<div class="pdf-card"><p>表示可能なグラフデータがありません。</p></div>`;
   }
   const latest = normalized.at(-1);
-  const maxAmount = Math.max(...normalized.map((point) => Number(point?.amount) || 0), 0);
-  const [firstHalf, secondHalf] = splitByHalf(normalized);
-  const hasSecondRow = secondHalf.length > 0;
+  const values = normalized.map((point) => Number(point?.amount) || 0);
+  const maxAbs = Math.max(...values.map((amount) => Math.abs(amount)), 0);
+  const hasNegative = values.some((amount) => amount < 0);
+  const rowCount = chooseBarRowCount(normalized.length);
+  const rows = splitIntoBalancedRows(normalized, rowCount);
+  const rowHtml = rows.map((row) => `
+    <div class="pdf-bar-row" style="--pdf-bar-columns:${row.length};">${buildPdfBarRows(row, { maxAbs, hasNegative })}</div>
+  `).join("");
   return `
     <div class="pdf-card">
       <div class="pdf-bar-grid">
-        <div class="pdf-bar-row">${buildPdfBarRows(firstHalf, maxAmount)}</div>
-        ${hasSecondRow ? `<div class="pdf-bar-row">${buildPdfBarRows(secondHalf, maxAmount)}</div>` : ""}
+        ${rowHtml}
       </div>
       <div class="pdf-kpi-grid">
         <div class="pdf-kpi-item"><span>対象</span><strong>64歳までの年次推移</strong></div>
@@ -5389,17 +5425,31 @@ function buildBarChartSectionHtml(points, metricLabel) {
   `;
 }
 
+function buildSvgPieChart(entries, colors) {
+  const normalizedEntries = Array.isArray(entries) ? entries : [];
+  const total = normalizedEntries.reduce((sum, entry) => sum + (Number(entry?.[1]) || 0), 0);
+  if (total <= 0) return "";
+  const radius = 38;
+  const circumference = 2 * Math.PI * radius;
+  let progress = 0;
+  const circles = normalizedEntries.map((entry, index) => {
+    const amount = Number(entry?.[1]) || 0;
+    const ratio = amount / total;
+    const dash = Math.max(0, ratio * circumference);
+    const gap = Math.max(0, circumference - dash);
+    const color = colors[index % colors.length];
+    const html = `<circle cx="50" cy="50" r="${radius}" fill="none" stroke="${color}" stroke-width="24" stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${-progress}" transform="rotate(-90 50 50)"></circle>`;
+    progress += dash;
+    return html;
+  }).join("");
+  return `<svg class="pdf-pie-svg" viewBox="0 0 100 100" aria-hidden="true">${circles}</svg>`;
+}
+
 function buildPieChartSectionHtml(entries, total, { centerLabel = "合計", emptyText = "データがありません。", title = "" } = {}) {
   const normalizedEntries = Array.isArray(entries) ? entries.filter((item) => Number(item?.[1]) > 0) : [];
   if (normalizedEntries.length === 0 || total <= 0) {
     return `<div class="pdf-card"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(emptyText)}</p></div>`;
   }
-  let degree = 0;
-  const segments = normalizedEntries.map(([, amount], index) => {
-    const start = degree;
-    degree += (amount / total) * 360;
-    return `${ASSET_PIE_COLORS[index % ASSET_PIE_COLORS.length]} ${start}deg ${degree}deg`;
-  }).join(", ");
   const legendHtml = normalizedEntries.map(([name, amount], index) => {
     const ratio = total === 0 ? 0 : (amount / total) * 100;
     return `<li><i style="background:${ASSET_PIE_COLORS[index % ASSET_PIE_COLORS.length]}"></i><span class="legend-name">${escapeHtml(name)}</span><strong class="legend-amount">${yen.format(amount)}</strong><span class="legend-ratio">${ratio.toFixed(1)}%</span></li>`;
@@ -5407,8 +5457,9 @@ function buildPieChartSectionHtml(entries, total, { centerLabel = "合計", empt
   return `
     <div class="pdf-card">
       <h3>${escapeHtml(title)}</h3>
-      <div class="pdf-pie-row">
-        <div class="pdf-pie" style="background: conic-gradient(${segments});">
+      <div class="pdf-pie-stack">
+        <div class="pdf-pie">
+          ${buildSvgPieChart(normalizedEntries, ASSET_PIE_COLORS)}
           <div class="pdf-pie-center"><span>${escapeHtml(centerLabel)}</span><strong>${yen.format(total)}</strong></div>
         </div>
         <ul class="pdf-legend">${legendHtml}</ul>
@@ -5421,19 +5472,14 @@ function buildExpenseAverageSectionHtml(expenseAverage) {
   if (!expenseAverage || expenseAverage.totalExpense <= 0 || !Array.isArray(expenseAverage.entries) || expenseAverage.entries.length === 0) {
     return `<div class="pdf-card"><p>平均対象期間の支出データがありません。</p></div>`;
   }
-  let degree = 0;
-  const segments = expenseAverage.entries.map((entry, index) => {
-    const start = degree;
-    degree += (entry.amount / expenseAverage.totalExpense) * 360;
-    return `${EXPENSE_CHART_COLORS[index % EXPENSE_CHART_COLORS.length]} ${start}deg ${degree}deg`;
-  }).join(", ");
   const items = expenseAverage.entries.map((entry, index) => (
     `<li><i style="background:${EXPENSE_CHART_COLORS[index % EXPENSE_CHART_COLORS.length]}"></i><span class="legend-name">${escapeHtml(entry.name)}</span><strong class="legend-amount">${yen.format(entry.amount)}</strong><span class="legend-ratio">${entry.ratio.toFixed(1)}%</span></li>`
   )).join("");
   return `
     <div class="pdf-card">
-      <div class="pdf-pie-row">
-        <div class="pdf-pie" style="background: conic-gradient(${segments});">
+      <div class="pdf-pie-stack">
+        <div class="pdf-pie">
+          ${buildSvgPieChart(expenseAverage.entries.map((entry) => [entry.name, entry.amount]), EXPENSE_CHART_COLORS)}
           <div class="pdf-pie-center"><span>月平均</span><strong>${yen.format(expenseAverage.totalExpense)}</strong></div>
         </div>
         <ul class="pdf-legend">${items}</ul>
@@ -5463,7 +5509,11 @@ function buildCashflowTablePages(rows, rowsPerPage = 16) {
         <h2>キャッシュフロー表${totalPages > 1 ? `（${pageNumber}/${totalPages}）` : ""}</h2>
         <div class="pdf-table-wrap">
           <table>
-            <thead><tr><th>年</th><th>年齢</th><th>年収</th><th>資産取崩金</th><th>通常支出</th><th>定期支出</th><th>積立支出</th><th>一括投資額</th><th>臨時収入</th><th>臨時支出</th><th>収支</th><th>残高</th><th>資産形成額</th><th>金融資産合計</th></tr></thead>
+            <colgroup>
+              <col class="col-year"><col class="col-age"><col class="col-money"><col class="col-money"><col class="col-money"><col class="col-money"><col class="col-money">
+              <col class="col-money"><col class="col-money"><col class="col-money"><col class="col-money"><col class="col-money"><col class="col-money"><col class="col-money">
+            </colgroup>
+            <thead><tr><th>年</th><th>年齢</th><th>年収</th><th>資産取崩<br>金</th><th>通常<br>支出</th><th>定期<br>支出</th><th>積立<br>支出</th><th>一括投資<br>額</th><th>臨時<br>収入</th><th>臨時<br>支出</th><th>収支</th><th>残高</th><th>資産形成<br>額</th><th>金融資産<br>合計</th></tr></thead>
             <tbody>${bodyRows}</tbody>
           </table>
         </div>
@@ -5489,32 +5539,45 @@ function downloadCashflowPdfFullReport() {
     .meta{color:#475569;margin:0 0 12px;} .pdf-card{border:1px solid #d8e0ea;border-radius:10px;padding:12px;background:#fff;}
     .pdf-cover{height:180mm;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:20px;border:1px solid #d8e0ea;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f1f5f9);}
     .pdf-cover-sub{font-size:15px;color:#334155;} .pdf-cover-meta{display:grid;gap:6px;font-size:14px;color:#1e293b;}
-    .pdf-bar-grid{display:grid;gap:16px;}
-    .pdf-bar-row{display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:6px;align-items:end;min-height:172px;}
+    .pdf-bar-grid{display:grid;gap:10px;}
+    .pdf-bar-row{display:grid;grid-template-columns:repeat(var(--pdf-bar-columns),minmax(0,1fr));gap:6px;align-items:end;min-height:168px;}
     .pdf-bar-item{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;}
-    .pdf-bar-value{font-size:9px;line-height:1.1;white-space:nowrap;}
-    .pdf-bar-track{height:120px;width:100%;max-width:32px;border:1px solid #d0dae6;background:#f8fafc;display:flex;align-items:flex-end;justify-content:center;}
+    .pdf-bar-value{font-size:8px;line-height:1.1;white-space:nowrap;}
+    .pdf-bar-value.is-negative{color:#b91c1c;}
+    .pdf-bar-track{position:relative;height:124px;width:100%;max-width:36px;border:1px solid #d0dae6;background:#f8fafc;}
+    .pdf-bar-track.positive-only .pdf-bar-fill{position:absolute;left:0;right:0;bottom:0;}
+    .pdf-bar-track.has-negative .pdf-bar-fill.is-positive{position:absolute;left:0;right:0;bottom:50%;}
+    .pdf-bar-track.has-negative .pdf-bar-fill.is-negative{position:absolute;left:0;right:0;top:50%;}
+    .pdf-bar-zero{position:absolute;left:0;right:0;top:50%;border-top:1px dashed #94a3b8;}
     .pdf-bar-fill{width:100%;background:#2563eb;}
-    .pdf-bar-year{font-size:10px;white-space:nowrap;}
+    .pdf-bar-fill.is-negative{background:#dc2626;}
+    .pdf-bar-year{font-size:9px;white-space:nowrap;}
+    .pdf-bar-year.is-muted{color:#94a3b8;}
     .pdf-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;}
     .pdf-kpi-item{border:1px solid #d8e0ea;border-radius:8px;padding:8px;}
     .pdf-kpi-item span{display:block;font-size:11px;color:#475569;margin-bottom:2px;}
     .pdf-kpi-item strong{font-size:13px;}
-    .pdf-pie-row{display:grid;grid-template-columns:250px 1fr;gap:12px;align-items:center;}
-    .pdf-pie{width:230px;height:230px;border-radius:50%;position:relative;}
+    .pdf-pie-stack{display:flex;flex-direction:column;align-items:center;gap:10px;}
+    .pdf-pie{width:230px;height:230px;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;}
+    .pdf-pie-svg{width:100%;height:100%;}
     .pdf-pie-center{position:absolute;inset:28%;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;}
     .pdf-pie-center strong{font-size:14px;}
-    .pdf-legend{list-style:none;padding:0;margin:0;max-height:240px;overflow:hidden;display:grid;gap:4px;}
+    .pdf-legend{list-style:none;padding:0;margin:0;max-height:250px;overflow:hidden;display:grid;gap:4px;width:100%;}
     .pdf-legend li{display:grid;grid-template-columns:12px minmax(0,1fr) auto auto;gap:8px;align-items:center;font-size:11px;}
     .pdf-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;}
-    .legend-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .legend-name{white-space:normal;line-height:1.2;}
     .legend-amount{font-size:11px;}
     .legend-ratio{color:#334155;}
     .metrics{margin:10px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
     .metrics li{border:1px solid #d8e0ea;border-radius:8px;padding:8px;font-size:12px;}
     .pdf-table-wrap{width:100%;}
-    table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px;} th,td{border:1px solid #cbd5e1;padding:4px 3px;white-space:nowrap;text-align:right;}
-    th{background:#e2e8f0;} td:first-child,td:nth-child(2){text-align:center;} tr{page-break-inside:avoid;}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px;}
+    .col-year{width:4%;} .col-age{width:4%;} .col-money{width:7.666%;}
+    th,td{border:1px solid #cbd5e1;padding:5px 4px;text-align:right;}
+    th{background:#e2e8f0;white-space:normal;line-height:1.2;text-align:center;font-size:8.5px;}
+    td{white-space:nowrap;font-size:8.5px;}
+    td:first-child,td:nth-child(2){text-align:center;}
+    tr{page-break-inside:avoid;}
   </style></head><body>
   <main class="pdf-report-root">
   <section class="pdf-page"><div class="pdf-cover"><h1>${coverTitle}</h1><p class="pdf-cover-sub">${coverSubTitle}</p><div class="pdf-cover-meta"><p>作成日時: ${generatedAt}</p><p>アプリ名: ${appName}</p></div></div></section>
