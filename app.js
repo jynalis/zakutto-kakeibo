@@ -5334,21 +5334,6 @@ function collectFullReportPdfData() {
   return reportData;
 }
 
-function renderDashboardMetricChartForPdf(metricKey, cashflowRows) {
-  if (!(pdfRenderRoot instanceof HTMLElement)) return "";
-  const host = document.createElement("div");
-  host.className = "pdf-dashboard-chart-host";
-  const chart = createDashboardAssetFormationChartLayout(cashflowRows, metricKey, {
-    interactive: false,
-    host,
-  });
-  host.appendChild(chart);
-  pdfRenderRoot.appendChild(host);
-  const html = host.innerHTML;
-  host.remove();
-  return html;
-}
-
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -5356,6 +5341,52 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function splitByHalf(items) {
+  const normalized = Array.isArray(items) ? items : [];
+  const midpoint = Math.ceil(normalized.length / 2);
+  return [normalized.slice(0, midpoint), normalized.slice(midpoint)];
+}
+
+function buildPdfBarRows(points, maxAmount) {
+  const safeMax = Number.isFinite(maxAmount) && maxAmount > 0 ? maxAmount : 1;
+  return points.map((point) => {
+    const amount = Number(point?.amount);
+    const safeAmount = Number.isFinite(amount) ? amount : 0;
+    const height = Math.max(6, Math.round((safeAmount / safeMax) * 120));
+    return `
+      <div class="pdf-bar-item">
+        <div class="pdf-bar-value">${yen.format(safeAmount)}</div>
+        <div class="pdf-bar-track"><div class="pdf-bar-fill" style="height:${height}px;"></div></div>
+        <div class="pdf-bar-year">${escapeHtml(point?.year ?? "-")}年</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function buildBarChartSectionHtml(points, metricLabel) {
+  const normalized = Array.isArray(points) ? points : [];
+  if (normalized.length === 0) {
+    return `<div class="pdf-card"><p>表示可能なグラフデータがありません。</p></div>`;
+  }
+  const latest = normalized.at(-1);
+  const maxAmount = Math.max(...normalized.map((point) => Number(point?.amount) || 0), 0);
+  const [firstHalf, secondHalf] = splitByHalf(normalized);
+  const hasSecondRow = secondHalf.length > 0;
+  return `
+    <div class="pdf-card">
+      <div class="pdf-bar-grid">
+        <div class="pdf-bar-row">${buildPdfBarRows(firstHalf, maxAmount)}</div>
+        ${hasSecondRow ? `<div class="pdf-bar-row">${buildPdfBarRows(secondHalf, maxAmount)}</div>` : ""}
+      </div>
+      <div class="pdf-kpi-grid">
+        <div class="pdf-kpi-item"><span>対象</span><strong>64歳までの年次推移</strong></div>
+        <div class="pdf-kpi-item"><span>最新年</span><strong>${escapeHtml(latest?.year ?? "-")}年</strong></div>
+        <div class="pdf-kpi-item"><span>${escapeHtml(metricLabel)}</span><strong>${yen.format(latest?.amount || 0)}</strong></div>
+      </div>
+    </div>
+  `;
 }
 
 function buildPieChartSectionHtml(entries, total, { centerLabel = "合計", emptyText = "データがありません。", title = "" } = {}) {
@@ -5371,7 +5402,7 @@ function buildPieChartSectionHtml(entries, total, { centerLabel = "合計", empt
   }).join(", ");
   const legendHtml = normalizedEntries.map(([name, amount], index) => {
     const ratio = total === 0 ? 0 : (amount / total) * 100;
-    return `<li><span><i style="background:${ASSET_PIE_COLORS[index % ASSET_PIE_COLORS.length]}"></i>${escapeHtml(name)}</span><strong>${yen.format(amount)} (${ratio.toFixed(1)}%)</strong></li>`;
+    return `<li><i style="background:${ASSET_PIE_COLORS[index % ASSET_PIE_COLORS.length]}"></i><span class="legend-name">${escapeHtml(name)}</span><strong class="legend-amount">${yen.format(amount)}</strong><span class="legend-ratio">${ratio.toFixed(1)}%</span></li>`;
   }).join("");
   return `
     <div class="pdf-card">
@@ -5397,7 +5428,7 @@ function buildExpenseAverageSectionHtml(expenseAverage) {
     return `${EXPENSE_CHART_COLORS[index % EXPENSE_CHART_COLORS.length]} ${start}deg ${degree}deg`;
   }).join(", ");
   const items = expenseAverage.entries.map((entry, index) => (
-    `<li><span><i style="background:${EXPENSE_CHART_COLORS[index % EXPENSE_CHART_COLORS.length]}"></i>${escapeHtml(entry.name)}</span><strong>${yen.format(entry.amount)} (${entry.ratio.toFixed(1)}%)</strong></li>`
+    `<li><i style="background:${EXPENSE_CHART_COLORS[index % EXPENSE_CHART_COLORS.length]}"></i><span class="legend-name">${escapeHtml(entry.name)}</span><strong class="legend-amount">${yen.format(entry.amount)}</strong><span class="legend-ratio">${entry.ratio.toFixed(1)}%</span></li>`
   )).join("");
   return `
     <div class="pdf-card">
@@ -5411,57 +5442,96 @@ function buildExpenseAverageSectionHtml(expenseAverage) {
   `;
 }
 
+function buildCashflowTablePages(rows, rowsPerPage = 16) {
+  const normalized = Array.isArray(rows) ? rows : [];
+  if (normalized.length === 0) return "";
+  const pages = [];
+  for (let start = 0; start < normalized.length; start += rowsPerPage) {
+    const pageRows = normalized.slice(start, start + rowsPerPage);
+    const bodyRows = pageRows.map((row) => `
+      <tr>
+        <td>${row.year}</td><td>${row.age}歳</td><td>${yen.format(row.annualIncome)}</td><td>${yen.format(row.annualAssetWithdrawalTransfer)}</td>
+        <td>${yen.format(row.annualRegularExpense)}</td><td>${yen.format(row.annualRecurringExpense)}</td><td>${yen.format(row.annualAssetFormationExpense)}</td>
+        <td>${yen.format(row.annualLumpInvestmentExpense)}</td><td>${yen.format(row.annualExtraIncome)}</td><td>${yen.format(row.annualExtraExpense)}</td>
+        <td>${yen.format(row.annualBalance)}</td><td>${yen.format(row.endingBalance)}</td><td>${yen.format(row.assetFormationBalance)}</td><td>${yen.format(row.financialAssetTotal)}</td>
+      </tr>
+    `).join("");
+    const pageNumber = pages.length + 1;
+    const totalPages = Math.ceil(normalized.length / rowsPerPage);
+    pages.push(`
+      <section class="pdf-page">
+        <h2>キャッシュフロー表${totalPages > 1 ? `（${pageNumber}/${totalPages}）` : ""}</h2>
+        <div class="pdf-table-wrap">
+          <table>
+            <thead><tr><th>年</th><th>年齢</th><th>年収</th><th>資産取崩金</th><th>通常支出</th><th>定期支出</th><th>積立支出</th><th>一括投資額</th><th>臨時収入</th><th>臨時支出</th><th>収支</th><th>残高</th><th>資産形成額</th><th>金融資産合計</th></tr></thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+      </section>
+    `);
+  }
+  return pages.join("");
+}
+
 function downloadCashflowPdfFullReport() {
   const reportData = collectFullReportPdfData();
   if (!Array.isArray(reportData.cashflowRows) || reportData.cashflowRows.length === 0) return;
   const generatedAt = new Date().toLocaleString("ja-JP");
-  const balanceChartHtml = renderDashboardMetricChartForPdf("endingBalance", reportData.cashflowRows);
-  const assetFormationChartHtml = renderDashboardMetricChartForPdf("assetFormationBalance", reportData.cashflowRows);
-  const financialAssetsChartHtml = renderDashboardMetricChartForPdf("financialAssetTotal", reportData.cashflowRows);
-  const cashflowBodyRows = reportData.cashflowRows.map((row) => `
-    <tr>
-      <td>${row.year}</td><td>${row.age}歳</td><td>${yen.format(row.annualIncome)}</td><td>${yen.format(row.annualAssetWithdrawalTransfer)}</td>
-      <td>${yen.format(row.annualRegularExpense)}</td><td>${yen.format(row.annualRecurringExpense)}</td><td>${yen.format(row.annualAssetFormationExpense)}</td>
-      <td>${yen.format(row.annualLumpInvestmentExpense)}</td><td>${yen.format(row.annualExtraIncome)}</td><td>${yen.format(row.annualExtraExpense)}</td>
-      <td>${yen.format(row.annualBalance)}</td><td>${yen.format(row.endingBalance)}</td><td>${yen.format(row.assetFormationBalance)}</td><td>${yen.format(row.financialAssetTotal)}</td>
-    </tr>
-  `).join("");
+  const coverTitle = "家計レポート";
+  const coverSubTitle = "家計・資産形成・CF分析レポート";
+  const appName = "Zakutto Kakeibo";
   const pageHtml = `<!doctype html><html lang="ja"><head><meta charset="UTF-8"><title>家計レポート</title>
   <style>
-    @page{size:A4 portrait;margin:12mm;} body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#1d2a3b;font-size:12px;}
+    @page{size:A4 landscape;margin:10mm;} body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#1d2a3b;font-size:12px;}
+    .pdf-report-root{width:100%;max-width:100%;margin:0 auto;}
     .pdf-page{break-after:page;page-break-after:always;} .pdf-page:last-child{break-after:auto;page-break-after:auto;}
-    h1{font-size:20px;margin:0 0 8px;} h2{font-size:18px;margin:0 0 12px;} h3{font-size:14px;margin:0 0 8px;}
+    h1{font-size:30px;margin:0 0 8px;} h2{font-size:20px;margin:0 0 12px;} h3{font-size:15px;margin:0 0 10px;}
     .meta{color:#475569;margin:0 0 12px;} .pdf-card{border:1px solid #d8e0ea;border-radius:10px;padding:12px;background:#fff;}
-    .metrics{margin:12px 0 0;padding-left:18px;} .metrics li{margin:4px 0;}
-    .dashboard-asset-formation-chart-layout{display:grid;grid-template-columns:84px 1fr;gap:8px;}
-    .dashboard-asset-formation-chart-scroll-pane{overflow:visible;} .dashboard-asset-formation-chart-scroll-content{min-width:0 !important;}
-    .dashboard-asset-formation-chart-svg,.dashboard-asset-formation-chart-y-axis-svg{height:280px;}
-    .pdf-pie-row{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:center;}
-    .pdf-pie{width:200px;height:200px;border-radius:50%;position:relative;}
+    .pdf-cover{height:180mm;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:20px;border:1px solid #d8e0ea;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f1f5f9);}
+    .pdf-cover-sub{font-size:15px;color:#334155;} .pdf-cover-meta{display:grid;gap:6px;font-size:14px;color:#1e293b;}
+    .pdf-bar-grid{display:grid;gap:16px;}
+    .pdf-bar-row{display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:6px;align-items:end;min-height:172px;}
+    .pdf-bar-item{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;}
+    .pdf-bar-value{font-size:9px;line-height:1.1;white-space:nowrap;}
+    .pdf-bar-track{height:120px;width:100%;max-width:32px;border:1px solid #d0dae6;background:#f8fafc;display:flex;align-items:flex-end;justify-content:center;}
+    .pdf-bar-fill{width:100%;background:#2563eb;}
+    .pdf-bar-year{font-size:10px;white-space:nowrap;}
+    .pdf-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;}
+    .pdf-kpi-item{border:1px solid #d8e0ea;border-radius:8px;padding:8px;}
+    .pdf-kpi-item span{display:block;font-size:11px;color:#475569;margin-bottom:2px;}
+    .pdf-kpi-item strong{font-size:13px;}
+    .pdf-pie-row{display:grid;grid-template-columns:250px 1fr;gap:12px;align-items:center;}
+    .pdf-pie{width:230px;height:230px;border-radius:50%;position:relative;}
     .pdf-pie-center{position:absolute;inset:28%;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;}
-    .pdf-pie-center strong{font-size:13px;}
-    .pdf-legend{list-style:none;padding:0;margin:0;max-height:220px;overflow:hidden;}
-    .pdf-legend li{display:flex;justify-content:space-between;gap:10px;margin:4px 0;}
-    .pdf-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;}
-    table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;} th,td{border:1px solid #cbd5e1;padding:4px 6px;white-space:nowrap;text-align:right;}
+    .pdf-pie-center strong{font-size:14px;}
+    .pdf-legend{list-style:none;padding:0;margin:0;max-height:240px;overflow:hidden;display:grid;gap:4px;}
+    .pdf-legend li{display:grid;grid-template-columns:12px minmax(0,1fr) auto auto;gap:8px;align-items:center;font-size:11px;}
+    .pdf-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;}
+    .legend-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .legend-amount{font-size:11px;}
+    .legend-ratio{color:#334155;}
+    .metrics{margin:10px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+    .metrics li{border:1px solid #d8e0ea;border-radius:8px;padding:8px;font-size:12px;}
+    .pdf-table-wrap{width:100%;}
+    table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px;} th,td{border:1px solid #cbd5e1;padding:4px 3px;white-space:nowrap;text-align:right;}
     th{background:#e2e8f0;} td:first-child,td:nth-child(2){text-align:center;} tr{page-break-inside:avoid;}
   </style></head><body>
-  <section class="pdf-page"><h1>家計レポート</h1><p class="meta">作成日時: ${generatedAt}</p><h2>残高</h2><div class="pdf-card">${balanceChartHtml}</div>
-  <ul class="metrics"><li>対象: 64歳までの年次推移</li><li>最新年の残高: ${yen.format(reportData.dashboardGraphs.balance.at(-1)?.amount || 0)}</li></ul></section>
-  <section class="pdf-page"><h2>資産形成</h2><div class="pdf-card">${assetFormationChartHtml}</div>
-  <ul class="metrics"><li>対象: 64歳までの年次推移</li><li>最新年の資産形成額: ${yen.format(reportData.dashboardGraphs.assetFormation.at(-1)?.amount || 0)}</li></ul></section>
-  <section class="pdf-page"><h2>金融試算</h2><div class="pdf-card">${financialAssetsChartHtml}</div>
-  <ul class="metrics"><li>対象: 64歳までの年次推移</li><li>最新年の金融資産合計: ${yen.format(reportData.dashboardGraphs.financialAssets.at(-1)?.amount || 0)}</li></ul></section>
+  <main class="pdf-report-root">
+  <section class="pdf-page"><div class="pdf-cover"><h1>${coverTitle}</h1><p class="pdf-cover-sub">${coverSubTitle}</p><div class="pdf-cover-meta"><p>作成日時: ${generatedAt}</p><p>アプリ名: ${appName}</p></div></div></section>
+  <section class="pdf-page"><h2>残高</h2>${buildBarChartSectionHtml(reportData.dashboardGraphs.balance, "最新年の残高")}</section>
+  <section class="pdf-page"><h2>資産形成</h2>${buildBarChartSectionHtml(reportData.dashboardGraphs.assetFormation, "最新年の資産形成額")}</section>
+  <section class="pdf-page"><h2>金融試算</h2>${buildBarChartSectionHtml(reportData.dashboardGraphs.financialAssets, "最新年の金融資産合計")}</section>
   <section class="pdf-page"><h2>現状試算</h2>
   ${buildPieChartSectionHtml(reportData.currentEstimate.entries, reportData.currentEstimate.total, { title: "現状試算の構成", centerLabel: "現時点総額" })}
   <ul class="metrics"><li>基準日: ${escapeHtml(reportData.currentEstimate.baseDate)}</li><li>評価月: ${escapeHtml(formatScheduledMonthLabel(reportData.currentEstimate.targetMonth))}</li><li>総額: ${yen.format(reportData.currentEstimate.total)}</li></ul></section>
   <section class="pdf-page"><h2>64歳年末時残高</h2>
   ${buildPieChartSectionHtml(reportData.age64YearEndBalance.entries, reportData.age64YearEndBalance.total, { title: "64歳年末時残高の構成", centerLabel: "64歳年末時点総額", emptyText: "64歳年末時残高の評価対象となる契約はありません。" })}
-  <ul class="metrics"><li>評価月: ${escapeHtml(formatScheduledMonthLabel(reportData.age64YearEndBalance.targetMonth))}</li><li>残高: ${yen.format(reportData.age64YearEndBalance.row?.endingBalance || 0)}</li><li>資産形成額: ${yen.format(reportData.age64YearEndBalance.row?.assetFormationBalance || 0)}</li></ul></section>
+  <ul class="metrics"><li>評価月: ${escapeHtml(formatScheduledMonthLabel(reportData.age64YearEndBalance.targetMonth))}</li><li>残高: ${yen.format(reportData.age64YearEndBalance.row?.endingBalance || 0)}</li><li>資産形成額: ${yen.format(reportData.age64YearEndBalance.row?.assetFormationBalance || 0)}</li><li>64歳年末時点総額: ${yen.format(reportData.age64YearEndBalance.total || 0)}</li></ul></section>
   <section class="pdf-page"><h2>支出分析（平均）</h2>
   ${buildExpenseAverageSectionHtml(reportData.averageExpense)}
   <ul class="metrics"><li>表示モード: 平均</li><li>平均対象月数: ${numberWithComma.format(reportData.averageExpense.monthCount || 0)}か月</li><li>月平均支出: ${yen.format(reportData.averageExpense.totalExpense || 0)}</li></ul></section>
-  <section class="pdf-page"><h2>キャッシュフロー表</h2><table><thead><tr><th>年</th><th>年齢</th><th>年収</th><th>資産取崩金</th><th>通常支出</th><th>定期支出</th><th>積立支出</th><th>一括投資額</th><th>臨時収入</th><th>臨時支出</th><th>収支</th><th>残高</th><th>資産形成額</th><th>金融資産合計</th></tr></thead><tbody>${cashflowBodyRows}</tbody></table></section>
+  ${buildCashflowTablePages(reportData.cashflowRows)}
+  </main>
   </body></html>`;
   const win = window.open("", "_blank");
   if (!win) return;
