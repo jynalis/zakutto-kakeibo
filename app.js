@@ -5488,12 +5488,19 @@ function buildExpenseAverageSectionHtml(expenseAverage) {
   `;
 }
 
-function buildCashflowTablePages(rows, rowsPerPage = 16) {
+function buildCashflowTablePages(rows, rowsPerPage = 24) {
   const normalized = Array.isArray(rows) ? rows : [];
   if (normalized.length === 0) return "";
+  const safeRowsPerPage = Math.max(1, Math.floor(rowsPerPage));
+  const totalPages = Math.ceil(normalized.length / safeRowsPerPage);
+  const baseRowsPerPage = Math.floor(normalized.length / totalPages);
+  const extraRows = normalized.length % totalPages;
+  const rowsPerEachPage = Array.from({ length: totalPages }, (_, index) => baseRowsPerPage + (index < extraRows ? 1 : 0));
   const pages = [];
-  for (let start = 0; start < normalized.length; start += rowsPerPage) {
-    const pageRows = normalized.slice(start, start + rowsPerPage);
+  let start = 0;
+  rowsPerEachPage.forEach((count, index) => {
+    const pageRows = normalized.slice(start, start + count);
+    start += count;
     const bodyRows = pageRows.map((row) => `
       <tr>
         <td>${row.year}</td><td>${row.age}歳</td><td>${yen.format(row.annualIncome)}</td><td>${yen.format(row.annualAssetWithdrawalTransfer)}</td>
@@ -5502,10 +5509,9 @@ function buildCashflowTablePages(rows, rowsPerPage = 16) {
         <td>${yen.format(row.annualBalance)}</td><td>${yen.format(row.endingBalance)}</td><td>${yen.format(row.assetFormationBalance)}</td><td>${yen.format(row.financialAssetTotal)}</td>
       </tr>
     `).join("");
-    const pageNumber = pages.length + 1;
-    const totalPages = Math.ceil(normalized.length / rowsPerPage);
+    const pageNumber = index + 1;
     pages.push(`
-      <section class="pdf-page">
+      <section class="pdf-page pdf-page-cashflow">
         <h2>キャッシュフロー表${totalPages > 1 ? `（${pageNumber}/${totalPages}）` : ""}</h2>
         <div class="pdf-table-wrap">
           <table>
@@ -5519,7 +5525,7 @@ function buildCashflowTablePages(rows, rowsPerPage = 16) {
         </div>
       </section>
     `);
-  }
+  });
   return pages.join("");
 }
 
@@ -5571,13 +5577,14 @@ function downloadCashflowPdfFullReport() {
     .metrics{margin:10px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
     .metrics li{border:1px solid #d8e0ea;border-radius:8px;padding:8px;font-size:12px;}
     .pdf-table-wrap{width:100%;}
-    table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px;}
+    .pdf-page-cashflow h2{margin:0 0 8px;font-size:18px;}
+    .pdf-page-cashflow table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8px;}
     .col-year{width:4%;} .col-age{width:4%;} .col-money{width:7.666%;}
-    th,td{border:1px solid #cbd5e1;padding:5px 4px;text-align:right;}
-    th{background:#e2e8f0;white-space:normal;line-height:1.2;text-align:center;font-size:8.5px;}
-    td{white-space:nowrap;font-size:8.5px;}
-    td:first-child,td:nth-child(2){text-align:center;}
-    tr{page-break-inside:avoid;}
+    .pdf-page-cashflow th,.pdf-page-cashflow td{border:1px solid #cbd5e1;padding:3px 2px;text-align:right;line-height:1.15;}
+    .pdf-page-cashflow th{background:#e2e8f0;white-space:normal;text-align:center;font-size:7.5px;}
+    .pdf-page-cashflow td{white-space:nowrap;font-size:7.5px;}
+    .pdf-page-cashflow td:first-child,.pdf-page-cashflow td:nth-child(2){text-align:center;}
+    .pdf-page-cashflow tr{page-break-inside:avoid;}
   </style></head><body>
   <main class="pdf-report-root">
   <section class="pdf-page"><div class="pdf-cover"><h1>${coverTitle}</h1><p class="pdf-cover-sub">${coverSubTitle}</p><div class="pdf-cover-meta"><p>作成日時: ${generatedAt}</p><p>アプリ名: ${appName}</p></div></div></section>
