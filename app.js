@@ -5445,24 +5445,38 @@ function buildSvgPieChart(entries, colors) {
   return `<svg class="pdf-pie-svg" viewBox="0 0 100 100" aria-hidden="true">${circles}</svg>`;
 }
 
+function buildPdfPieRows(entries, total, colors) {
+  return entries.map(([name, amount], index) => {
+    const ratio = total === 0 ? 0 : (amount / total) * 100;
+    const color = colors[index % colors.length];
+    return `
+      <li class="pdf-pie-row">
+        <div class="pdf-pie-name-cell"><i style="background:${color}"></i><span class="legend-name">${escapeHtml(name)}</span></div>
+        <div class="pdf-pie-value-cell"><strong class="legend-amount">${yen.format(amount)}</strong><span class="legend-ratio">${ratio.toFixed(1)}%</span></div>
+      </li>
+    `;
+  }).join("");
+}
+
 function buildPieChartSectionHtml(entries, total, { centerLabel = "合計", emptyText = "データがありません。", title = "" } = {}) {
   const normalizedEntries = Array.isArray(entries) ? entries.filter((item) => Number(item?.[1]) > 0) : [];
   if (normalizedEntries.length === 0 || total <= 0) {
     return `<div class="pdf-card"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(emptyText)}</p></div>`;
   }
-  const legendHtml = normalizedEntries.map(([name, amount], index) => {
-    const ratio = total === 0 ? 0 : (amount / total) * 100;
-    return `<li><i style="background:${ASSET_PIE_COLORS[index % ASSET_PIE_COLORS.length]}"></i><span class="legend-name">${escapeHtml(name)}</span><strong class="legend-amount">${yen.format(amount)}</strong><span class="legend-ratio">${ratio.toFixed(1)}%</span></li>`;
-  }).join("");
+  const rowsHtml = buildPdfPieRows(normalizedEntries, total, ASSET_PIE_COLORS);
+  const compactRows = normalizedEntries.length > 11;
   return `
     <div class="pdf-card">
       <h3>${escapeHtml(title)}</h3>
-      <div class="pdf-pie-stack">
-        <div class="pdf-pie">
-          ${buildSvgPieChart(normalizedEntries, ASSET_PIE_COLORS)}
-          <div class="pdf-pie-center"><span>${escapeHtml(centerLabel)}</span><strong>${yen.format(total)}</strong></div>
+      <div class="pdf-pie-layout">
+        <div class="pdf-pie-left">
+          <div class="pdf-pie">
+            ${buildSvgPieChart(normalizedEntries, ASSET_PIE_COLORS)}
+            <div class="pdf-pie-center"><span>${escapeHtml(centerLabel)}</span><strong>${yen.format(total)}</strong></div>
+          </div>
         </div>
-        <ul class="pdf-legend">${legendHtml}</ul>
+        <div class="pdf-pie-middle"><ul class="pdf-pie-rows ${compactRows ? "is-compact" : ""}">${rowsHtml}</ul></div>
+        <div class="pdf-pie-right"><ul class="pdf-pie-rows ${compactRows ? "is-compact" : ""}">${rowsHtml}</ul></div>
       </div>
     </div>
   `;
@@ -5472,17 +5486,20 @@ function buildExpenseAverageSectionHtml(expenseAverage) {
   if (!expenseAverage || expenseAverage.totalExpense <= 0 || !Array.isArray(expenseAverage.entries) || expenseAverage.entries.length === 0) {
     return `<div class="pdf-card"><p>平均対象期間の支出データがありません。</p></div>`;
   }
-  const items = expenseAverage.entries.map((entry, index) => (
-    `<li><i style="background:${EXPENSE_CHART_COLORS[index % EXPENSE_CHART_COLORS.length]}"></i><span class="legend-name">${escapeHtml(entry.name)}</span><strong class="legend-amount">${yen.format(entry.amount)}</strong><span class="legend-ratio">${entry.ratio.toFixed(1)}%</span></li>`
-  )).join("");
+  const normalizedEntries = expenseAverage.entries.map((entry) => [entry.name, entry.amount]);
+  const rowsHtml = buildPdfPieRows(normalizedEntries, expenseAverage.totalExpense, EXPENSE_CHART_COLORS);
+  const compactRows = normalizedEntries.length > 11;
   return `
     <div class="pdf-card">
-      <div class="pdf-pie-stack">
-        <div class="pdf-pie">
-          ${buildSvgPieChart(expenseAverage.entries.map((entry) => [entry.name, entry.amount]), EXPENSE_CHART_COLORS)}
-          <div class="pdf-pie-center"><span>月平均</span><strong>${yen.format(expenseAverage.totalExpense)}</strong></div>
+      <div class="pdf-pie-layout">
+        <div class="pdf-pie-left">
+          <div class="pdf-pie">
+            ${buildSvgPieChart(normalizedEntries, EXPENSE_CHART_COLORS)}
+            <div class="pdf-pie-center"><span>月平均</span><strong>${yen.format(expenseAverage.totalExpense)}</strong></div>
+          </div>
         </div>
-        <ul class="pdf-legend">${items}</ul>
+        <div class="pdf-pie-middle"><ul class="pdf-pie-rows ${compactRows ? "is-compact" : ""}">${rowsHtml}</ul></div>
+        <div class="pdf-pie-right"><ul class="pdf-pie-rows ${compactRows ? "is-compact" : ""}">${rowsHtml}</ul></div>
       </div>
     </div>
   `;
@@ -5563,17 +5580,27 @@ function downloadCashflowPdfFullReport() {
     .pdf-kpi-item{border:1px solid #d8e0ea;border-radius:8px;padding:8px;}
     .pdf-kpi-item span{display:block;font-size:11px;color:#475569;margin-bottom:2px;}
     .pdf-kpi-item strong{font-size:13px;}
-    .pdf-pie-stack{display:flex;flex-direction:column;align-items:center;gap:10px;}
-    .pdf-pie{width:230px;height:230px;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;}
+    .pdf-pie-layout{display:grid;grid-template-columns:40% 30% 30%;gap:12px;align-items:stretch;}
+    .pdf-pie-left{display:flex;align-items:center;justify-content:center;}
+    .pdf-pie-middle,.pdf-pie-right{min-width:0;}
+    .pdf-pie{width:min(100%,250px);aspect-ratio:1 / 1;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;}
     .pdf-pie-svg{width:100%;height:100%;}
     .pdf-pie-center{position:absolute;inset:28%;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;}
     .pdf-pie-center strong{font-size:14px;}
-    .pdf-legend{list-style:none;padding:0;margin:0;max-height:250px;overflow:hidden;display:grid;gap:4px;width:100%;}
-    .pdf-legend li{display:grid;grid-template-columns:12px minmax(0,1fr) auto auto;gap:8px;align-items:center;font-size:11px;}
-    .pdf-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;}
-    .legend-name{white-space:normal;line-height:1.2;}
-    .legend-amount{font-size:11px;}
-    .legend-ratio{color:#334155;}
+    .pdf-pie-rows{list-style:none;padding:0;margin:0;display:grid;gap:4px;max-height:250px;overflow:hidden;}
+    .pdf-pie-rows.is-compact{gap:2px;max-height:260px;}
+    .pdf-pie-row{min-height:20px;display:flex;align-items:center;font-size:10.5px;line-height:1.25;}
+    .pdf-pie-rows.is-compact .pdf-pie-row{min-height:16px;font-size:9.5px;}
+    .pdf-pie-middle .pdf-pie-row{padding-right:6px;}
+    .pdf-pie-right .pdf-pie-row{justify-content:flex-end;}
+    .pdf-pie-name-cell{display:grid;grid-template-columns:12px minmax(0,1fr);gap:8px;align-items:center;width:100%;}
+    .pdf-pie-middle .pdf-pie-value-cell{display:none;}
+    .pdf-pie-right .pdf-pie-name-cell{display:none;}
+    .pdf-pie-name-cell i{display:inline-block;width:10px;height:10px;border-radius:50%;}
+    .legend-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .pdf-pie-value-cell{display:grid;grid-template-columns:auto 48px;gap:8px;align-items:center;justify-items:end;width:100%;}
+    .legend-amount{font-size:10.5px;text-align:right;white-space:nowrap;}
+    .legend-ratio{color:#334155;text-align:right;white-space:nowrap;}
     .metrics{margin:10px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
     .metrics li{border:1px solid #d8e0ea;border-radius:8px;padding:8px;font-size:12px;}
     .pdf-table-wrap{width:100%;}
