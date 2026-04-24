@@ -5451,8 +5451,10 @@ function buildPdfPieRows(entries, total, colors) {
     const color = colors[index % colors.length];
     return `
       <li class="pdf-pie-row">
-        <div class="pdf-pie-name-cell"><i style="background:${color}"></i><span class="legend-name">${escapeHtml(name)}</span></div>
-        <div class="pdf-pie-value-cell"><strong class="legend-amount">${yen.format(amount)}</strong><span class="legend-ratio">${ratio.toFixed(1)}%</span></div>
+        <i class="pdf-pie-marker" style="background:${color}"></i>
+        <span class="legend-name">${escapeHtml(name)}</span>
+        <strong class="legend-amount">${yen.format(amount)}</strong>
+        <span class="legend-ratio">${ratio.toFixed(1)}%</span>
       </li>
     `;
   }).join("");
@@ -5475,7 +5477,6 @@ function buildPieChartSectionHtml(entries, total, { centerLabel = "合計", empt
             <div class="pdf-pie-center"><span>${escapeHtml(centerLabel)}</span><strong>${yen.format(total)}</strong></div>
           </div>
         </div>
-        <div class="pdf-pie-middle"><ul class="pdf-pie-rows ${compactRows ? "is-compact" : ""}">${rowsHtml}</ul></div>
         <div class="pdf-pie-right"><ul class="pdf-pie-rows ${compactRows ? "is-compact" : ""}">${rowsHtml}</ul></div>
       </div>
     </div>
@@ -5498,18 +5499,33 @@ function buildExpenseAverageSectionHtml(expenseAverage) {
             <div class="pdf-pie-center"><span>月平均</span><strong>${yen.format(expenseAverage.totalExpense)}</strong></div>
           </div>
         </div>
-        <div class="pdf-pie-middle"><ul class="pdf-pie-rows ${compactRows ? "is-compact" : ""}">${rowsHtml}</ul></div>
         <div class="pdf-pie-right"><ul class="pdf-pie-rows ${compactRows ? "is-compact" : ""}">${rowsHtml}</ul></div>
       </div>
     </div>
   `;
 }
 
-function buildCashflowTablePages(rows, rowsPerPage = 24) {
+const PDF_CASHFLOW_LAYOUT = {
+  pageInnerHeightMm: 190,
+  titleBlockHeightMm: 10,
+  tableHeaderHeightMm: 8,
+  tablePaddingMm: 2,
+  rowHeightMm: 5.2,
+};
+
+function calculateCashflowRowsPerPage() {
+  const availableBodyHeight = PDF_CASHFLOW_LAYOUT.pageInnerHeightMm
+    - PDF_CASHFLOW_LAYOUT.titleBlockHeightMm
+    - PDF_CASHFLOW_LAYOUT.tableHeaderHeightMm
+    - PDF_CASHFLOW_LAYOUT.tablePaddingMm;
+  return Math.max(1, Math.floor(availableBodyHeight / PDF_CASHFLOW_LAYOUT.rowHeightMm));
+}
+
+function buildCashflowTablePages(rows) {
   const normalized = Array.isArray(rows) ? rows : [];
   if (normalized.length === 0) return "";
-  const safeRowsPerPage = Math.max(1, Math.floor(rowsPerPage));
-  const totalPages = Math.ceil(normalized.length / safeRowsPerPage);
+  const maxRowsPerPage = calculateCashflowRowsPerPage();
+  const totalPages = Math.ceil(normalized.length / maxRowsPerPage);
   const baseRowsPerPage = Math.floor(normalized.length / totalPages);
   const extraRows = normalized.length % totalPages;
   const rowsPerEachPage = Array.from({ length: totalPages }, (_, index) => baseRowsPerPage + (index < extraRows ? 1 : 0));
@@ -5580,36 +5596,37 @@ function downloadCashflowPdfFullReport() {
     .pdf-kpi-item{border:1px solid #d8e0ea;border-radius:8px;padding:8px;}
     .pdf-kpi-item span{display:block;font-size:11px;color:#475569;margin-bottom:2px;}
     .pdf-kpi-item strong{font-size:13px;}
-    .pdf-pie-layout{display:grid;grid-template-columns:40% 30% 30%;gap:12px;align-items:stretch;}
+    .pdf-pie-layout{display:grid;grid-template-columns:minmax(0,1fr) max-content;gap:8px;align-items:center;}
     .pdf-pie-left{display:flex;align-items:center;justify-content:center;}
-    .pdf-pie-middle,.pdf-pie-right{min-width:0;}
-    .pdf-pie{width:min(100%,250px);aspect-ratio:1 / 1;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;}
+    .pdf-pie-right{min-width:0;max-width:340px;}
+    .pdf-pie{width:min(100%,460px);aspect-ratio:1 / 1;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;}
     .pdf-pie-svg{width:100%;height:100%;}
-    .pdf-pie-center{position:absolute;inset:28%;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:11px;}
-    .pdf-pie-center strong{font-size:14px;}
-    .pdf-pie-rows{list-style:none;padding:0;margin:0;display:grid;gap:4px;max-height:250px;overflow:hidden;}
-    .pdf-pie-rows.is-compact{gap:2px;max-height:260px;}
-    .pdf-pie-row{min-height:20px;display:flex;align-items:center;font-size:10.5px;line-height:1.25;}
-    .pdf-pie-rows.is-compact .pdf-pie-row{min-height:16px;font-size:9.5px;}
-    .pdf-pie-middle .pdf-pie-row{padding-right:6px;}
-    .pdf-pie-right .pdf-pie-row{justify-content:flex-end;}
-    .pdf-pie-name-cell{display:grid;grid-template-columns:12px minmax(0,1fr);gap:8px;align-items:center;width:100%;}
-    .pdf-pie-middle .pdf-pie-value-cell{display:none;}
-    .pdf-pie-right .pdf-pie-name-cell{display:none;}
-    .pdf-pie-name-cell i{display:inline-block;width:10px;height:10px;border-radius:50%;}
+    .pdf-pie-center{position:absolute;inset:30%;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:12px;}
+    .pdf-pie-center strong{font-size:15px;}
+    .pdf-pie-rows{list-style:none;padding:0;margin:0;display:grid;gap:3px;max-height:460px;overflow:hidden;}
+    .pdf-pie-rows.is-compact{gap:2px;max-height:460px;}
+    .pdf-pie-row{min-height:18px;display:grid;grid-template-columns:10px minmax(84px,1fr) auto auto;gap:4px;align-items:center;font-size:10px;line-height:1.2;}
+    .pdf-pie-rows.is-compact .pdf-pie-row{min-height:15px;font-size:9px;}
+    
+    
+    
+    
+    
+    
+    .pdf-pie-marker{display:inline-block;width:9px;height:9px;border-radius:50%;}
     .legend-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .pdf-pie-value-cell{display:grid;grid-template-columns:auto 48px;gap:8px;align-items:center;justify-items:end;width:100%;}
-    .legend-amount{font-size:10.5px;text-align:right;white-space:nowrap;}
+    
+    .legend-amount{font-size:10px;text-align:right;white-space:nowrap;}
     .legend-ratio{color:#334155;text-align:right;white-space:nowrap;}
     .metrics{margin:10px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
     .metrics li{border:1px solid #d8e0ea;border-radius:8px;padding:8px;font-size:12px;}
     .pdf-table-wrap{width:100%;}
-    .pdf-page-cashflow h2{margin:0 0 8px;font-size:18px;}
-    .pdf-page-cashflow table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8px;}
+    .pdf-page-cashflow h2{margin:0 0 6px;font-size:16px;}
+    .pdf-page-cashflow table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7.3px;}
     .col-year{width:4%;} .col-age{width:4%;} .col-money{width:7.666%;}
-    .pdf-page-cashflow th,.pdf-page-cashflow td{border:1px solid #cbd5e1;padding:3px 2px;text-align:right;line-height:1.15;}
-    .pdf-page-cashflow th{background:#e2e8f0;white-space:normal;text-align:center;font-size:7.5px;}
-    .pdf-page-cashflow td{white-space:nowrap;font-size:7.5px;}
+    .pdf-page-cashflow th,.pdf-page-cashflow td{border:1px solid #cbd5e1;padding:2px 1px;text-align:right;line-height:1.1;}
+    .pdf-page-cashflow th{background:#e2e8f0;white-space:normal;text-align:center;font-size:7px;}
+    .pdf-page-cashflow td{white-space:nowrap;font-size:7px;}
     .pdf-page-cashflow td:first-child,.pdf-page-cashflow td:nth-child(2){text-align:center;}
     .pdf-page-cashflow tr{page-break-inside:avoid;}
   </style></head><body>
