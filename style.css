@@ -4173,11 +4173,20 @@ body.is-keyboard-open .floating-top-button {
 .cashflow-actions {
   margin-top: 10px;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
 }
 
 .cashflow-actions button {
   min-height: 46px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+  white-space: nowrap;
 }
 
 @media (max-width: 680px) {
@@ -4243,11 +4252,13 @@ body.is-keyboard-open .floating-top-button {
   }
 
   .cashflow-actions {
-    justify-content: stretch;
+    justify-content: center;
+    gap: 10px;
+    max-width: none;
   }
 
-.cashflow-actions button {
-    width: 100%;
+  .cashflow-actions button {
+    width: auto;
   }
 }
 
