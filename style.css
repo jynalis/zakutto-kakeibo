@@ -4189,6 +4189,15 @@ body.is-keyboard-open .floating-top-button {
   white-space: nowrap;
 }
 
+.cashflow-json-guide {
+  margin: 8px auto 0;
+  width: 100%;
+  max-width: 420px;
+  font-size: 0.83rem;
+  color: #516273;
+  line-height: 1.5;
+}
+
 @media (max-width: 680px) {
   .cashflow-sub-tabs {
     gap: 5px;
