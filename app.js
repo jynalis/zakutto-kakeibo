@@ -5716,6 +5716,59 @@ function computeFirstNegativeYear(rows, key) {
   return Number.isFinite(target?.year) ? target.year : null;
 }
 
+function toYenInt(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.round(numeric);
+}
+
+function toNullableYenInt(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.round(numeric);
+}
+
+function toNullableRate(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return numeric / 100;
+}
+
+function computeLimitYear(firstNegativeYear) {
+  return Number.isInteger(firstNegativeYear) ? firstNegativeYear - 1 : null;
+}
+
+function collectMainWithdrawalRiskYears(cashflowProjection) {
+  const threshold = 1000000;
+  return cashflowProjection
+    .filter((row) => row.asset_withdrawal >= threshold || (row.asset_withdrawal > 0 && row.cashflow >= threshold))
+    .map((row) => row.year);
+}
+
+function collectPotentialOverWithdrawalYears(cashflowProjection) {
+  return cashflowProjection
+    .filter((row, index, rows) => {
+      if (row.asset_withdrawal <= 0 || row.cashflow <= 0) return false;
+      if (index === 0) return row.cash_balance >= 1000000;
+      const prev = rows[index - 1];
+      return row.cash_balance - prev.cash_balance >= 1000000;
+    })
+    .map((row) => row.year);
+}
+
+function hasCashBalanceRecoveryAfterNegative(cashflowProjection) {
+  let hadNegative = false;
+  return cashflowProjection.some((row) => {
+    if (row.cash_balance < 0) {
+      hadNegative = true;
+      return false;
+    }
+    return hadNegative && row.cash_balance >= 0;
+  });
+}
+
 function formatAnalysisTimestamp(date) {
   if (!(date instanceof Date)) return new Date().toISOString();
   return date.toISOString();
@@ -5766,6 +5819,45 @@ function validateAnalysisCashflowProjection(rows) {
   return notes;
 }
 
+function validateAnalysisJsonPayload(payload) {
+  const warnings = [];
+  const cashflowProjection = Array.isArray(payload?.cashflow_projection) ? payload.cashflow_projection : [];
+  if (cashflowProjection.length === 0) {
+    warnings.push("cashflow_projection が空です。");
+  }
+  if (cashflowProjection.some((row, index) => index > 0 && Number(row.year) < Number(cashflowProjection[index - 1].year))) {
+    warnings.push("cashflow_projection[].year が昇順ではありません。");
+  }
+  if (cashflowProjection.some((row) => !Number.isFinite(row.age))) {
+    warnings.push("cashflow_projection[].age が欠損しています。");
+  }
+  const firstNegativeCash = cashflowProjection.find((row) => row.cash_balance < 0)?.year ?? null;
+  if (firstNegativeCash !== payload?.diagnosis_summary?.first_negative_cash_balance_year) {
+    warnings.push("first_negative_cash_balance_year が cashflow_projection と不一致です。");
+  }
+  const firstNegativeAssets = cashflowProjection.find((row) => row.financial_assets_total < 0)?.year ?? null;
+  if (firstNegativeAssets !== payload?.diagnosis_summary?.first_negative_financial_assets_year) {
+    warnings.push("first_negative_financial_assets_year が cashflow_projection と不一致です。");
+  }
+  const cashLimit = payload?.diagnosis_summary?.cash_balance_limit_year;
+  if (Number.isInteger(firstNegativeCash) && cashLimit !== firstNegativeCash - 1) {
+    warnings.push("cash_balance_limit_year が first_negative_cash_balance_year の前年と一致しません。");
+  }
+  const assetsLimit = payload?.diagnosis_summary?.financial_assets_limit_year;
+  if (Number.isInteger(firstNegativeAssets) && assetsLimit !== firstNegativeAssets - 1) {
+    warnings.push("financial_assets_limit_year が first_negative_financial_assets_year の前年と一致しません。");
+  }
+  const forbiddenExpenseLabels = new Set(["出金", "支出", "合計", "総額"]);
+  if ((payload?.expense_analysis?.items || []).some((item) => forbiddenExpenseLabels.has(item?.name))) {
+    warnings.push("expense_analysis.items に見出しラベルが含まれています。");
+  }
+  const accountsTotal = toYenInt((payload?.asset_accounts || []).reduce((sum, account) => sum + (Number(account?.current_value) || 0), 0));
+  if (toYenInt(payload?.current_assets?.accounts_total_check) !== accountsTotal) {
+    warnings.push("current_assets.accounts_total_check と asset_accounts 合計が不一致です。");
+  }
+  return warnings;
+}
+
 function buildAnalysisJson() {
   const generatedAt = new Date();
   const settings = loadSettings();
@@ -5792,14 +5884,15 @@ function buildAnalysisJson() {
     account_id: createStableAccountId(plan),
     name: `${plan.type}${plan.name ? `（${plan.name}）` : ""}`,
     category: toAnalysisAccountCategory(plan.type),
-    current_value: Math.round(Number(plan.currentAmount) || 0),
+    current_value: toYenInt(plan.currentAmount),
     percentage: currentAssetsTotal > 0
       ? Math.round(((Number(plan.currentAmount) || 0) / currentAssetsTotal) * 1000) / 10
       : 0,
     liquidity: toAnalysisAccountLiquidity(plan.type),
     tax_category: plan.type === "iDeCo" ? "tax_deferred" : null,
     withdrawable_from_age: plan.type === "iDeCo" ? 60 : null,
-    expected_return: Number.isFinite(Number(plan.expectedReturn)) ? Number(plan.expectedReturn) : null,
+    expected_return_rate: toNullableRate(plan.expectedReturn),
+    expected_return_percent: Number.isFinite(Number(plan.expectedReturn)) ? Number(plan.expectedReturn) : null,
     notes: plan.type === "iDeCo" ? ["原則として60歳以降の受取を想定"] : [],
   }));
   const assetAccountsTotal = assetAccounts.reduce((sum, account) => sum + (Number(account.current_value) || 0), 0);
@@ -5808,18 +5901,18 @@ function buildAnalysisJson() {
   const cashflowProjection = cashflowRows.map((row) => ({
     year: Number(row.year),
     age: Number(row.age),
-    annual_income: Number(row.annualIncome),
-    asset_withdrawal: Number(row.annualAssetWithdrawalTransfer),
-    normal_expense: Number(row.annualRegularExpense),
-    fixed_expense: Number(row.annualRecurringExpense),
-    saving_expense: Number(row.annualAssetFormationExpense),
-    lump_sum_investment: Number(row.annualLumpInvestmentExpense),
-    temporary_income: Number(row.annualExtraIncome),
-    temporary_expense: Number(row.annualExtraExpense),
-    cashflow: Number(row.annualBalance),
-    cash_balance: Number(row.endingBalance),
-    asset_formation: Number(row.assetFormationBalance),
-    financial_assets_total: Number(row.financialAssetTotal),
+    annual_income: toYenInt(row.annualIncome),
+    asset_withdrawal: toYenInt(row.annualAssetWithdrawalTransfer),
+    normal_expense: toYenInt(row.annualRegularExpense),
+    fixed_expense: toYenInt(row.annualRecurringExpense),
+    saving_expense: toYenInt(row.annualAssetFormationExpense),
+    lump_sum_investment: toYenInt(row.annualLumpInvestmentExpense),
+    temporary_income: toYenInt(row.annualExtraIncome),
+    temporary_expense: toYenInt(row.annualExtraExpense),
+    cashflow: toYenInt(row.annualBalance),
+    cash_balance: toYenInt(row.endingBalance),
+    asset_formation: toYenInt(row.assetFormationBalance),
+    financial_assets_total: toYenInt(row.financialAssetTotal),
     is_retirement_year: row.age === TARGET_AGE_PRIMARY,
     is_pension_start_year: row.age === 65,
     is_negative_cash_balance: Number(row.endingBalance) < 0,
@@ -5836,12 +5929,13 @@ function buildAnalysisJson() {
   const projectionEndRow = projectionEndYear !== null
     ? cashflowProjection.find((row) => row.year === projectionEndYear) || latestProjection
     : latestProjection;
+  const hiddenExpenseLabels = new Set(["出金", "支出", "合計", "総額"]);
   const expenseItems = Array.isArray(averageDataset?.expenseComposition?.entries)
     ? averageDataset.expenseComposition.entries.map((entry) => ({
       name: entry.name,
-      amount: Number(entry.amount) || 0,
+      amount: toYenInt(entry.amount),
       percentage: Math.round((Number(entry.ratio) || 0) * 10) / 10,
-    }))
+    })).filter((entry) => !hiddenExpenseLabels.has(entry.name))
     : [];
   const mainExpenseCategory = expenseItems.reduce((maxEntry, entry) => {
     if (!maxEntry) return entry;
@@ -5862,8 +5956,14 @@ function buildAnalysisJson() {
     exportNotes.push("current_assets.total と asset_accounts の合計に差分があります。difference を確認してください。");
   }
 
-  return {
-    schema_version: "1.0.0",
+  const cashBalanceLimitYear = computeLimitYear(firstNegativeCashBalanceYear);
+  const financialAssetsLimitYear = computeLimitYear(firstNegativeFinancialAssetsYear);
+  const mainWithdrawalRiskYears = collectMainWithdrawalRiskYears(cashflowProjection);
+  const potentialOverWithdrawalYears = collectPotentialOverWithdrawalYears(cashflowProjection);
+  const hasWithdrawalRestrictionAccount = assetAccounts.some((account) => account.liquidity === "restricted" || Number.isFinite(account.withdrawable_from_age));
+  const hasTaxAdvantagedAccount = assetAccounts.some((account) => account.category === "nisa" || account.category === "ideco" || account.tax_category !== null);
+  const analysisData = {
+    schema_version: "1.0.1",
     metadata: {
       app_name: "Zakutto Kakeibo",
       app_url: "https://jynalis.github.io/zakutto-kakeibo/",
@@ -5894,6 +5994,8 @@ function buildAnalysisJson() {
       current_value: "基準日時点の現在値。",
       projected_value: "将来シミュレーション上の推計値。確定値ではない。",
       black_balance_limit_year: "金融資産合計または現金残高が初めてマイナス化する直前の年。",
+      expected_return_rate: "期待利回り。年率を小数で表す。例：4.5% は 0.045。",
+      expected_return_percent: "期待利回り。年率をパーセント値で表す。例：4.5% は 4.5。",
     },
     household_profile: {
       current_age: Number.isFinite(projectionRange?.currentAge) ? Math.round(projectionRange.currentAge) : null,
@@ -5904,13 +6006,13 @@ function buildAnalysisJson() {
       notes: [],
     },
     summary: {
-      current_cash_balance: Number(currentProjection?.cash_balance) || 0,
-      current_asset_formation: Number(currentProjection?.asset_formation) || 0,
-      current_financial_assets_total: Number(currentProjection?.financial_assets_total) || 0,
+      current_cash_balance: toYenInt(currentProjection?.cash_balance),
+      current_asset_formation: toYenInt(currentProjection?.asset_formation),
+      current_financial_assets_total: toYenInt(currentProjection?.financial_assets_total),
       latest_projection_year: Number(latestProjection?.year) || null,
-      latest_projected_cash_balance: Number(latestProjection?.cash_balance) || 0,
-      latest_projected_asset_formation: Number(latestProjection?.asset_formation) || 0,
-      latest_projected_financial_assets_total: Number(latestProjection?.financial_assets_total) || 0,
+      latest_projected_cash_balance: toYenInt(latestProjection?.cash_balance),
+      latest_projected_asset_formation: toYenInt(latestProjection?.asset_formation),
+      latest_projected_financial_assets_total: toYenInt(latestProjection?.financial_assets_total),
       first_negative_cash_balance_year: firstNegativeCashBalanceYear,
       first_negative_financial_assets_year: firstNegativeFinancialAssetsYear,
     },
@@ -5940,12 +6042,12 @@ function buildAnalysisJson() {
       as_of_date: todayISO(),
       total: currentAssetsTotal,
       accounts_total_check: assetAccountsTotal,
-      difference: assetDifference,
+      difference: toYenInt(assetDifference),
     },
     reconciliation: {
       today_current_assets_total: currentAssetsTotal,
-      cashflow_base_financial_assets_total: Number(currentProjection?.financial_assets_total) || 0,
-      difference: reconciliationDifference,
+      cashflow_base_financial_assets_total: toYenInt(currentProjection?.financial_assets_total),
+      difference: toYenInt(reconciliationDifference),
       priority_for_current_asset_statement: "current_assets.total",
       priority_for_future_cashflow_diagnosis: "summary.current_financial_assets_total",
       notes: [
@@ -5960,7 +6062,7 @@ function buildAnalysisJson() {
     expense_analysis: {
       mode: "average",
       average_months: Number(averageDataset?.summary?.monthCount) || 0,
-      monthly_total_expense: Number(averageDataset?.expenseComposition?.totalExpense) || 0,
+      monthly_total_expense: toYenInt(expenseItems.reduce((sum, item) => sum + item.amount, 0)),
       items: expenseItems,
     },
     age_definitions: {
@@ -5969,16 +6071,26 @@ function buildAnalysisJson() {
       priority_for_diagnosis: "将来推計や生涯収支の診断では cashflow_projection[].age を優先してください。今日現在のプロフィール説明では household_profile.current_age を優先してください。",
     },
     diagnosis_summary: {
-      average_monthly_expense: Number(averageDataset?.expenseComposition?.totalExpense) || 0,
+      average_monthly_expense: toYenInt(expenseItems.reduce((sum, item) => sum + item.amount, 0)),
       today_current_assets_total: currentAssetsTotal,
-      cashflow_base_financial_assets_total: Number(currentProjection?.financial_assets_total) || 0,
-      financial_assets_at_retirement_age: Number(retirementProjection?.financial_assets_total) || null,
-      financial_assets_at_pension_start_age: Number(pensionStartProjection?.financial_assets_total) || null,
-      financial_assets_at_projection_end_age: Number(projectionEndRow?.financial_assets_total) || 0,
+      cashflow_base_financial_assets_total: toYenInt(currentProjection?.financial_assets_total),
+      financial_assets_at_retirement_age: toNullableYenInt(retirementProjection?.financial_assets_total),
+      financial_assets_at_pension_start_age: toNullableYenInt(pensionStartProjection?.financial_assets_total),
+      financial_assets_at_projection_end_age: toYenInt(projectionEndRow?.financial_assets_total),
+      cash_balance_limit_year: cashBalanceLimitYear,
+      financial_assets_limit_year: financialAssetsLimitYear,
       first_negative_cash_balance_year: firstNegativeCashBalanceYear,
       first_negative_financial_assets_year: firstNegativeFinancialAssetsYear,
+      main_withdrawal_risk_years: mainWithdrawalRiskYears,
+      potential_over_withdrawal_years: potentialOverWithdrawalYears,
+      recommended_analysis_focus: [
+        "大きな資産取崩し年の妥当性確認",
+        "黒字年の過剰取崩し抑制",
+        "赤字年のみ不足額を補填する方式の検討",
+        "取崩し順序と税制優遇口座の扱い確認",
+      ],
       main_expense_category: mainExpenseCategory?.name || null,
-      main_expense_category_amount: Number(mainExpenseCategory?.amount) || 0,
+      main_expense_category_amount: toYenInt(mainExpenseCategory?.amount),
       main_expense_category_percentage: Number(mainExpenseCategory?.percentage) || 0,
       main_risk: firstNegativeFinancialAssetsYear !== null
         ? `${firstNegativeFinancialAssetsYear}年に金融資産合計がマイナス化する見込みです。`
@@ -6006,6 +6118,85 @@ function buildAnalysisJson() {
         do_not_treat_lump_sum_investment_as_living_expense: true,
         do_not_double_count_cash_balance_and_asset_formation: true,
       },
+      withdrawal_optimization: {
+        recommended_methods_to_compare: [
+          "base_plan",
+          "shortfall_based_withdrawal",
+          "fixed_amount_withdrawal",
+          "fixed_rate_withdrawal",
+          "stepwise_rate_withdrawal",
+          "lump_sum_plus_shortfall_based",
+          "account_priority_withdrawal",
+        ],
+        primary_objective: "maximize_years_until_negative_financial_assets_total",
+        secondary_objectives: [
+          "maximize_years_until_negative_cash_balance",
+          "maximize_final_financial_assets_total",
+          "minimize_excess_cash_balance",
+          "minimize_unnecessary_early_withdrawal",
+        ],
+        black_balance_limit_definition: {
+          cash_balance_limit_year: "cash_balance が初めて 0 未満になる直前の年",
+          financial_assets_limit_year: "financial_assets_total が初めて 0 未満になる直前の年",
+        },
+        suggested_constraints: {
+          cash_balance_floor: null,
+          do_not_force_withdrawal_in_surplus_years: true,
+          withdraw_only_when_needed: true,
+          avoid_excess_cash_accumulation: true,
+          preserve_tax_advantaged_assets_when_reasonable: true,
+          respect_withdrawable_from_age: true,
+        },
+      },
+    },
+    withdrawal_priority_hint: {
+      default_order: ["cash_savings", "insurance", "other", "nisa", "ideco"],
+      principles: [
+        "生活防衛資金は一定額残す",
+        "流動性の高い資産から使う",
+        "期待利回りが低い資産を優先的に取り崩す",
+        "税制優遇口座は可能なら後ろ倒しする",
+        "iDeCoは受取制限と税制を考慮する",
+        "臨時支出と通常生活費の赤字補填は分けて考える",
+        "黒字年は無理に取り崩さず、赤字年に必要額を補填する",
+      ],
+      account_category_notes: {
+        cash: "流動性が最も高く、短期の不足補填に使いやすい。ただし生活防衛資金は残す。",
+        cash_savings: "目的別貯金。目的が近い支出には優先利用しやすい。",
+        insurance: "解約控除、返戻率、年金受取条件を確認して判断する。",
+        nisa: "売却益が非課税のため、長期運用を優先する選択肢がある。必要時は流動性資産として使える。",
+        ideco: "原則60歳以降の受取。税制・受取方法・退職所得控除等を考慮する。",
+        investment: "期待利回り、課税、価格変動リスクを見て判断する。",
+        stock: "価格変動が大きいため、取り崩し時期に注意する。",
+        other: "個別条件を確認して判断する。",
+      },
+      notes: [
+        "この優先順位は一般的な分析用の初期値です。",
+        "実際の最適な取崩し順は、税金、解約控除、受取制限、含み益、期待利回り、生活防衛資金によって変わります。",
+      ],
+    },
+    ai_usage_guide: {
+      intended_use: [
+        "家計診断",
+        "支出構成分析",
+        "資産形成分析",
+        "将来キャッシュフロー分析",
+        "資産寿命診断",
+        "収支額黒字限界年シミュレーション",
+        "取崩し最適化",
+        "取崩し優先順位の提案",
+      ],
+      recommended_user_prompt: "このJSONをもとに、家計診断、金融資産が赤字化する年、赤字化を最も遅らせる取崩し方法、資産ごとの取崩し優先順位を具体的にシミュレーションしてください。",
+      analysis_requirements: [
+        "asset_withdrawal を通常収入として扱わない",
+        "cash_balance と asset_formation を二重計上しない",
+        "financial_assets_total は原則 cash_balance + asset_formation として扱う",
+        "temporary_income と temporary_expense は通常収支と分けて評価する",
+        "lump_sum_investment は通常生活費の増加と同一視しない",
+        "将来値は推計値であり、確定値として扱わない",
+        "取崩し方法は定額・定率・段階的定率・一括・不足額連動型を比較する",
+        "黒字年数を最大化するだけでなく、生活防衛資金や税制優遇口座の扱いにも注意する",
+      ],
     },
     diagnostic_flags: {
       has_temporary_income: cashflowProjection.some((row) => row.temporary_income > 0),
@@ -6016,13 +6207,21 @@ function buildAnalysisJson() {
       has_negative_financial_assets_year: firstNegativeFinancialAssetsYear !== null,
       has_large_one_time_withdrawal: cashflowProjection.some((row) => row.asset_withdrawal >= 1000000),
       has_large_one_time_expense: cashflowProjection.some((row) => row.temporary_expense >= 1000000 || row.lump_sum_investment >= 1000000),
+      has_excess_cash_accumulation_year: cashflowProjection.some((row, index) => {
+        if (index === 0) return false;
+        return row.asset_withdrawal > 0 && (row.cash_balance - cashflowProjection[index - 1].cash_balance) >= 1000000;
+      }),
+      has_potential_over_withdrawal_year: potentialOverWithdrawalYears.length > 0,
+      has_cash_balance_recovery_after_negative: hasCashBalanceRecoveryAfterNegative(cashflowProjection),
+      has_account_with_withdrawal_restriction: hasWithdrawalRestrictionAccount,
+      has_tax_advantaged_account: hasTaxAdvantagedAccount,
     },
     export_notes: exportNotes,
     simulation_results_preview: {
       base_plan: {
         first_negative_cash_balance_year: firstNegativeCashBalanceYear,
         first_negative_financial_assets_year: firstNegativeFinancialAssetsYear,
-        final_financial_assets_total: Number(latestProjection?.financial_assets_total) || 0,
+        final_financial_assets_total: toYenInt(latestProjection?.financial_assets_total),
       },
       shortfall_based_withdrawal_hint: {
         description: "赤字年のみ必要額を取崩す方式の検討に使用",
@@ -6030,6 +6229,8 @@ function buildAnalysisJson() {
       },
     },
   };
+  analysisData.validation_warnings = validateAnalysisJsonPayload(analysisData);
+  return analysisData;
 }
 
 function downloadAnalysisJson() {
