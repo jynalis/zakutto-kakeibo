@@ -5830,6 +5830,25 @@ function buildAnalysisJson() {
   const firstNegativeFinancialAssetsYear = computeFirstNegativeYear(cashflowProjection, "financial_assets_total");
   const latestProjection = cashflowProjection.at(-1) || null;
   const currentProjection = cashflowProjection[0] || null;
+  const retirementProjection = cashflowProjection.find((row) => row.is_retirement_year) || null;
+  const pensionStartProjection = cashflowProjection.find((row) => row.is_pension_start_year) || null;
+  const projectionEndYear = Number.isInteger(projectionRange?.endYear) ? projectionRange.endYear : null;
+  const projectionEndRow = projectionEndYear !== null
+    ? cashflowProjection.find((row) => row.year === projectionEndYear) || latestProjection
+    : latestProjection;
+  const expenseItems = Array.isArray(averageDataset?.expenseComposition?.entries)
+    ? averageDataset.expenseComposition.entries.map((entry) => ({
+      name: entry.name,
+      amount: Number(entry.amount) || 0,
+      percentage: Math.round((Number(entry.ratio) || 0) * 10) / 10,
+    }))
+    : [];
+  const mainExpenseCategory = expenseItems.reduce((maxEntry, entry) => {
+    if (!maxEntry) return entry;
+    if (entry.percentage > maxEntry.percentage) return entry;
+    return maxEntry;
+  }, null);
+  const reconciliationDifference = (Number(currentProjection?.financial_assets_total) || 0) - currentAssetsTotal;
 
   const exportNotes = [
     "このJSONは家計診断・シミュレーション用の機械可読データです。",
@@ -5895,24 +5914,76 @@ function buildAnalysisJson() {
       first_negative_cash_balance_year: firstNegativeCashBalanceYear,
       first_negative_financial_assets_year: firstNegativeFinancialAssetsYear,
     },
+    basis_definitions: {
+      current_assets_total: {
+        field: "current_assets.total",
+        basis: "today_current_value",
+        description: "current_assets.as_of_date 時点の登録済み資産口座の合計です。今日現在の実額に近い資産額として扱います。",
+      },
+      current_financial_assets_total: {
+        field: "summary.current_financial_assets_total",
+        basis: "cashflow_projection_base",
+        description: "CF表・生涯収支表のロジックに基づく基準時点の金融資産合計です。原則として current_cash_balance + current_asset_formation です。将来診断ではこちらを優先します。",
+      },
+      household_current_age: {
+        field: "household_profile.current_age",
+        basis: "today_current_age",
+        description: "JSON作成日時点の今日現在の年齢です。",
+      },
+      cashflow_projection_age: {
+        field: "cashflow_projection[].age",
+        basis: "cashflow_table_age",
+        description: "画面上の生涯収支表で使用している年齢です。今日現在の年齢ではなく、CF表ロジック上の年齢として扱います。",
+      },
+    },
     current_assets: {
       as_of_date: todayISO(),
       total: currentAssetsTotal,
       accounts_total_check: assetAccountsTotal,
       difference: assetDifference,
     },
+    reconciliation: {
+      today_current_assets_total: currentAssetsTotal,
+      cashflow_base_financial_assets_total: Number(currentProjection?.financial_assets_total) || 0,
+      difference: reconciliationDifference,
+      priority_for_current_asset_statement: "current_assets.total",
+      priority_for_future_cashflow_diagnosis: "summary.current_financial_assets_total",
+      notes: [
+        "current_assets.total は current_assets.as_of_date 時点の登録済み資産口座の合計です。",
+        "summary.current_financial_assets_total は CF表・生涯収支表の基準時点における金融資産合計です。",
+        "今日現在の資産額を説明する場合は current_assets.total を優先してください。",
+        "将来の生涯収支・資産寿命を診断する場合は summary.current_financial_assets_total と cashflow_projection を優先してください。",
+        "両者は基準時点または集計対象が異なるため、金額が一致しない場合があります。",
+      ],
+    },
     asset_accounts: assetAccounts,
     expense_analysis: {
       mode: "average",
       average_months: Number(averageDataset?.summary?.monthCount) || 0,
       monthly_total_expense: Number(averageDataset?.expenseComposition?.totalExpense) || 0,
-      items: Array.isArray(averageDataset?.expenseComposition?.entries)
-        ? averageDataset.expenseComposition.entries.map((entry) => ({
-          name: entry.name,
-          amount: Number(entry.amount) || 0,
-          percentage: Math.round((Number(entry.ratio) || 0) * 10) / 10,
-        }))
-        : [],
+      items: expenseItems,
+    },
+    age_definitions: {
+      current_age: "JSON作成日時点の今日現在の年齢です。",
+      cashflow_projection_age: "画面上の生涯収支表で使用している年齢です。CF表ロジック上の年齢であり、今日現在の年齢とは一致しない場合があります。",
+      priority_for_diagnosis: "将来推計や生涯収支の診断では cashflow_projection[].age を優先してください。今日現在のプロフィール説明では household_profile.current_age を優先してください。",
+    },
+    diagnosis_summary: {
+      average_monthly_expense: Number(averageDataset?.expenseComposition?.totalExpense) || 0,
+      today_current_assets_total: currentAssetsTotal,
+      cashflow_base_financial_assets_total: Number(currentProjection?.financial_assets_total) || 0,
+      financial_assets_at_retirement_age: Number(retirementProjection?.financial_assets_total) || null,
+      financial_assets_at_pension_start_age: Number(pensionStartProjection?.financial_assets_total) || null,
+      financial_assets_at_projection_end_age: Number(projectionEndRow?.financial_assets_total) || 0,
+      first_negative_cash_balance_year: firstNegativeCashBalanceYear,
+      first_negative_financial_assets_year: firstNegativeFinancialAssetsYear,
+      main_expense_category: mainExpenseCategory?.name || null,
+      main_expense_category_amount: Number(mainExpenseCategory?.amount) || 0,
+      main_expense_category_percentage: Number(mainExpenseCategory?.percentage) || 0,
+      main_risk: firstNegativeFinancialAssetsYear !== null
+        ? `${firstNegativeFinancialAssetsYear}年に金融資産合計がマイナス化する見込みです。`
+        : "金融資産合計が推計期間内でマイナス化する見込みは確認されていません。",
+      diagnosis_priority: "老後資産寿命の延伸",
     },
     cashflow_projection: cashflowProjection,
     simulation_base: {
