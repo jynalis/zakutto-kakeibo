@@ -5847,7 +5847,7 @@ function validateAnalysisJsonPayload(payload) {
   if (Number.isInteger(firstNegativeAssets) && assetsLimit !== firstNegativeAssets - 1) {
     warnings.push("financial_assets_limit_year が first_negative_financial_assets_year の前年と一致しません。");
   }
-  const forbiddenExpenseLabels = new Set(["出金", "支出", "合計", "総額"]);
+  const forbiddenExpenseLabels = new Set(["支出", "合計", "総額"]);
   if ((payload?.expense_analysis?.items || []).some((item) => forbiddenExpenseLabels.has(item?.name))) {
     warnings.push("expense_analysis.items に見出しラベルが含まれています。");
   }
@@ -5929,7 +5929,7 @@ function buildAnalysisJson() {
   const projectionEndRow = projectionEndYear !== null
     ? cashflowProjection.find((row) => row.year === projectionEndYear) || latestProjection
     : latestProjection;
-  const hiddenExpenseLabels = new Set(["出金", "支出", "合計", "総額"]);
+  const hiddenExpenseLabels = new Set(["支出", "合計", "総額"]);
   const expenseItems = Array.isArray(averageDataset?.expenseComposition?.entries)
     ? averageDataset.expenseComposition.entries.map((entry) => ({
       name: entry.name,
