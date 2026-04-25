@@ -142,6 +142,7 @@ const cashflowExpenseScenarioList = document.getElementById("cashflow-expense-sc
 const cashflowExpenseScenarioAddButton = document.getElementById("cashflow-expense-scenario-add");
 const cashflowTableWrap = document.getElementById("cashflow-table-wrap");
 const cashflowDownloadPdfButton = document.getElementById("cashflow-download-pdf-button");
+const cashflowDownloadJsonButton = document.getElementById("cashflow-download-json-button");
 const pdfRenderRoot = document.getElementById("pdf-render-root");
 const cashflowSubTabs = Array.from(document.querySelectorAll("[data-cashflow-sub-tab]"));
 const cashflowSubPanels = Array.from(document.querySelectorAll("[data-cashflow-sub-panel]"));
@@ -5663,6 +5664,323 @@ function downloadCashflowPdf() {
   downloadCashflowPdfFullReport();
 }
 
+function toAnalysisAccountCategory(planType) {
+  const normalizedType = typeof planType === "string" ? planType.trim() : "";
+  switch (normalizedType) {
+    case "貯金":
+      return "cash_savings";
+    case "NISA":
+      return "nisa";
+    case "iDeCo":
+      return "ideco";
+    case "貯蓄性保険":
+      return "insurance";
+    default:
+      return "other";
+  }
+}
+
+function toAnalysisAccountLiquidity(planType) {
+  const normalizedType = typeof planType === "string" ? planType.trim() : "";
+  switch (normalizedType) {
+    case "貯金":
+      return "high";
+    case "NISA":
+      return "medium";
+    case "貯蓄性保険":
+      return "medium";
+    case "iDeCo":
+      return "restricted";
+    default:
+      return "unknown";
+  }
+}
+
+function createStableAccountId(plan) {
+  const sourceId = typeof plan?.id === "string" ? plan.id.trim() : "";
+  if (sourceId) return sourceId;
+  const safeType = String(plan?.type || "other")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "");
+  const safeName = String(plan?.name || "account")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "");
+  return `${safeType || "other"}-${safeName || "account"}`;
+}
+
+function computeFirstNegativeYear(rows, key) {
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  const target = normalizedRows.find((row) => Number(row?.[key]) < 0);
+  return Number.isFinite(target?.year) ? target.year : null;
+}
+
+function formatAnalysisTimestamp(date) {
+  if (!(date instanceof Date)) return new Date().toISOString();
+  return date.toISOString();
+}
+
+function validateAnalysisCashflowProjection(rows) {
+  const notes = [];
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  if (normalizedRows.length === 0) {
+    notes.push("cashflow_projection が空のため、将来分析は実施できません。");
+    return notes;
+  }
+
+  const requiredNumberFields = [
+    "year",
+    "age",
+    "annual_income",
+    "asset_withdrawal",
+    "normal_expense",
+    "fixed_expense",
+    "saving_expense",
+    "lump_sum_investment",
+    "temporary_income",
+    "temporary_expense",
+    "cashflow",
+    "cash_balance",
+    "asset_formation",
+    "financial_assets_total",
+  ];
+  const nonNumberField = normalizedRows.find((row) => requiredNumberFields.some((field) => !Number.isFinite(row?.[field])));
+  if (nonNumberField) {
+    notes.push("cashflow_projection に number 型ではない金額・年次項目が含まれます。");
+  }
+
+  const hasDescendingYear = normalizedRows.some((row, index) => index > 0 && Number(row.year) < Number(normalizedRows[index - 1].year));
+  if (hasDescendingYear) {
+    notes.push("cashflow_projection の year が昇順ではありません。");
+  }
+
+  const inconsistentRow = normalizedRows.find((row) => {
+    const expectedTotal = Number(row.cash_balance) + Number(row.asset_formation);
+    return Math.abs(Number(row.financial_assets_total) - expectedTotal) > 1;
+  });
+  if (inconsistentRow) {
+    notes.push("financial_assets_total と cash_balance + asset_formation に差異があります（アプリ仕様差分の可能性あり）。");
+  }
+
+  return notes;
+}
+
+function buildAnalysisJson() {
+  const generatedAt = new Date();
+  const settings = loadSettings();
+  const transactions = loadTransactions();
+  const recurringExpenses = loadRecurringExpenses();
+  const lifeEvents = loadLifeEvents();
+  const assumptions = loadCashflowAssumptions();
+  const cashflowRows = buildCashflowRows({ settings, transactions, recurringExpenses, lifeEvents, assumptions });
+
+  const projectionRange = resolveCashflowProjectionRange({
+    settings,
+    transactions,
+    targetAge: CASHFLOW_TABLE_TARGET_AGE,
+  });
+  const averageTargetMonths = resolveAverageTargetMonths(settings, transactions);
+  const averageDataset = buildAverageModeDataset(settings, transactions, averageTargetMonths);
+  const currentAssetTargetMonth = resolveCurrentAssetTargetMonth();
+  const currentAssetRows = buildCurrentAssetGraphRows(settings, currentAssetTargetMonth, {
+    asOfDate: todayISO(),
+  });
+  const currentAssetEntries = currentAssetRows.filter((plan) => Number(plan.currentAmount) > 0);
+  const currentAssetsTotal = Math.round(currentAssetEntries.reduce((sum, plan) => sum + (Number(plan.currentAmount) || 0), 0));
+  const assetAccounts = currentAssetEntries.map((plan) => ({
+    account_id: createStableAccountId(plan),
+    name: `${plan.type}${plan.name ? `（${plan.name}）` : ""}`,
+    category: toAnalysisAccountCategory(plan.type),
+    current_value: Math.round(Number(plan.currentAmount) || 0),
+    percentage: currentAssetsTotal > 0
+      ? Math.round(((Number(plan.currentAmount) || 0) / currentAssetsTotal) * 1000) / 10
+      : 0,
+    liquidity: toAnalysisAccountLiquidity(plan.type),
+    tax_category: plan.type === "iDeCo" ? "tax_deferred" : null,
+    withdrawable_from_age: plan.type === "iDeCo" ? 60 : null,
+    expected_return: Number.isFinite(Number(plan.expectedReturn)) ? Number(plan.expectedReturn) : null,
+    notes: plan.type === "iDeCo" ? ["原則として60歳以降の受取を想定"] : [],
+  }));
+  const assetAccountsTotal = assetAccounts.reduce((sum, account) => sum + (Number(account.current_value) || 0), 0);
+  const assetDifference = currentAssetsTotal - assetAccountsTotal;
+
+  const cashflowProjection = cashflowRows.map((row) => ({
+    year: Number(row.year),
+    age: Number(row.age),
+    annual_income: Number(row.annualIncome),
+    asset_withdrawal: Number(row.annualAssetWithdrawalTransfer),
+    normal_expense: Number(row.annualRegularExpense),
+    fixed_expense: Number(row.annualRecurringExpense),
+    saving_expense: Number(row.annualAssetFormationExpense),
+    lump_sum_investment: Number(row.annualLumpInvestmentExpense),
+    temporary_income: Number(row.annualExtraIncome),
+    temporary_expense: Number(row.annualExtraExpense),
+    cashflow: Number(row.annualBalance),
+    cash_balance: Number(row.endingBalance),
+    asset_formation: Number(row.assetFormationBalance),
+    financial_assets_total: Number(row.financialAssetTotal),
+    is_retirement_year: row.age === TARGET_AGE_PRIMARY,
+    is_pension_start_year: row.age === 65,
+    is_negative_cash_balance: Number(row.endingBalance) < 0,
+    is_negative_financial_assets: Number(row.financialAssetTotal) < 0,
+    remarks: [],
+  }));
+  const firstNegativeCashBalanceYear = computeFirstNegativeYear(cashflowProjection, "cash_balance");
+  const firstNegativeFinancialAssetsYear = computeFirstNegativeYear(cashflowProjection, "financial_assets_total");
+  const latestProjection = cashflowProjection.at(-1) || null;
+  const currentProjection = cashflowProjection[0] || null;
+
+  const exportNotes = [
+    "このJSONは家計診断・シミュレーション用の機械可読データです。",
+    "asset_withdrawal は通常収入ではなく、保有資産の取崩しとして扱ってください。",
+    "financial_assets_total は原則として cash_balance + asset_formation です。",
+    "将来値はシミュレーション前提に基づく推計値であり、確定値ではありません。",
+    "税制・社会保険・年金制度の詳細判断は外部の最新情報確認が必要です。",
+  ];
+  exportNotes.push(...validateAnalysisCashflowProjection(cashflowProjection));
+  if (assetDifference !== 0) {
+    exportNotes.push("current_assets.total と asset_accounts の合計に差分があります。difference を確認してください。");
+  }
+
+  return {
+    schema_version: "1.0.0",
+    metadata: {
+      app_name: "Zakutto Kakeibo",
+      app_url: "https://jynalis.github.io/zakutto-kakeibo/",
+      created_at: formatAnalysisTimestamp(generatedAt),
+      exported_at: formatAnalysisTimestamp(generatedAt),
+      base_year: Number.isInteger(projectionRange?.startYear) ? projectionRange.startYear : null,
+      base_month: Number.isInteger(parseMonth(projectionRange?.cashflowStartMonth || "")?.monthIndex)
+        ? parseMonth(projectionRange?.cashflowStartMonth || "").monthIndex + 1
+        : null,
+      currency: "JPY",
+      amount_unit: "yen",
+      projection_start_year: Number.isInteger(projectionRange?.startYear) ? projectionRange.startYear : null,
+      projection_end_year: Number.isInteger(projectionRange?.endYear) ? projectionRange.endYear : null,
+    },
+    definitions: {
+      annual_income: "その年の収入。通常収入を中心とする。資産取崩金とは区別する。",
+      asset_withdrawal: "保有資産の現金化・使用。通常収入ではなく資産移動として扱う。",
+      normal_expense: "通常支出。毎年または日常的に発生する支出。",
+      fixed_expense: "定期支出。固定費・定常支出として扱う。",
+      saving_expense: "積立支出。支出であると同時に資産形成の原資でもある。",
+      lump_sum_investment: "一括投資額。通常生活費ではなく資産移動に近い支出として扱う。",
+      temporary_income: "臨時収入。毎年定常的な収入とは区別する。",
+      temporary_expense: "臨時支出。毎年定常的な支出とは区別する。",
+      cashflow: "同一年の収入・支出・取崩し等を反映した年間収支。",
+      cash_balance: "現金・預貯金等の流動性資金残高。",
+      asset_formation: "積立・投資・貯蓄性商品などで形成された資産部分。",
+      financial_assets_total: "原則として cash_balance + asset_formation。現在または将来時点の金融資産合計。",
+      current_value: "基準日時点の現在値。",
+      projected_value: "将来シミュレーション上の推計値。確定値ではない。",
+      black_balance_limit_year: "金融資産合計または現金残高が初めてマイナス化する直前の年。",
+    },
+    household_profile: {
+      current_age: Number.isFinite(projectionRange?.currentAge) ? Math.round(projectionRange.currentAge) : null,
+      retirement_age: TARGET_AGE_PRIMARY,
+      pension_start_age: 65,
+      projection_until_age: CASHFLOW_TABLE_TARGET_AGE,
+      household_type: null,
+      notes: [],
+    },
+    summary: {
+      current_cash_balance: Number(currentProjection?.cash_balance) || 0,
+      current_asset_formation: Number(currentProjection?.asset_formation) || 0,
+      current_financial_assets_total: Number(currentProjection?.financial_assets_total) || 0,
+      latest_projection_year: Number(latestProjection?.year) || null,
+      latest_projected_cash_balance: Number(latestProjection?.cash_balance) || 0,
+      latest_projected_asset_formation: Number(latestProjection?.asset_formation) || 0,
+      latest_projected_financial_assets_total: Number(latestProjection?.financial_assets_total) || 0,
+      first_negative_cash_balance_year: firstNegativeCashBalanceYear,
+      first_negative_financial_assets_year: firstNegativeFinancialAssetsYear,
+    },
+    current_assets: {
+      as_of_date: todayISO(),
+      total: currentAssetsTotal,
+      accounts_total_check: assetAccountsTotal,
+      difference: assetDifference,
+    },
+    asset_accounts: assetAccounts,
+    expense_analysis: {
+      mode: "average",
+      average_months: Number(averageDataset?.summary?.monthCount) || 0,
+      monthly_total_expense: Number(averageDataset?.expenseComposition?.totalExpense) || 0,
+      items: Array.isArray(averageDataset?.expenseComposition?.entries)
+        ? averageDataset.expenseComposition.entries.map((entry) => ({
+          name: entry.name,
+          amount: Number(entry.amount) || 0,
+          percentage: Math.round((Number(entry.ratio) || 0) * 10) / 10,
+        }))
+        : [],
+    },
+    cashflow_projection: cashflowProjection,
+    simulation_base: {
+      simulation_purpose: "withdrawal_optimization",
+      objective_candidates: [
+        "maximize_years_until_negative_cash_balance",
+        "maximize_years_until_negative_financial_assets_total",
+        "maximize_final_financial_assets_total",
+        "minimize_excess_cash_balance",
+      ],
+      default_objective: "maximize_years_until_negative_financial_assets_total",
+      cash_reserve_minimum: null,
+      cash_reserve_target: null,
+      allow_lump_sum_withdrawal: true,
+      allow_variable_rate_withdrawal: true,
+      allow_shortfall_based_withdrawal: true,
+      allow_account_priority_withdrawal: true,
+      withdrawal_constraints: {
+        do_not_treat_asset_withdrawal_as_income: true,
+        do_not_treat_lump_sum_investment_as_living_expense: true,
+        do_not_double_count_cash_balance_and_asset_formation: true,
+      },
+    },
+    diagnostic_flags: {
+      has_temporary_income: cashflowProjection.some((row) => row.temporary_income > 0),
+      has_temporary_expense: cashflowProjection.some((row) => row.temporary_expense > 0),
+      has_asset_withdrawal: cashflowProjection.some((row) => row.asset_withdrawal > 0),
+      has_lump_sum_investment: cashflowProjection.some((row) => row.lump_sum_investment > 0),
+      has_negative_cash_balance_year: firstNegativeCashBalanceYear !== null,
+      has_negative_financial_assets_year: firstNegativeFinancialAssetsYear !== null,
+      has_large_one_time_withdrawal: cashflowProjection.some((row) => row.asset_withdrawal >= 1000000),
+      has_large_one_time_expense: cashflowProjection.some((row) => row.temporary_expense >= 1000000 || row.lump_sum_investment >= 1000000),
+    },
+    export_notes: exportNotes,
+    simulation_results_preview: {
+      base_plan: {
+        first_negative_cash_balance_year: firstNegativeCashBalanceYear,
+        first_negative_financial_assets_year: firstNegativeFinancialAssetsYear,
+        final_financial_assets_total: Number(latestProjection?.financial_assets_total) || 0,
+      },
+      shortfall_based_withdrawal_hint: {
+        description: "赤字年のみ必要額を取崩す方式の検討に使用",
+        enabled: true,
+      },
+    },
+  };
+}
+
+function downloadAnalysisJson() {
+  try {
+    const analysisData = buildAnalysisJson();
+    const json = JSON.stringify(analysisData, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `zakutto-kakeibo-analysis-${formatBackupTimestampForFilename(new Date())}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+    window.alert("JSONを出力しました");
+  } catch (error) {
+    console.error(error);
+    window.alert("JSON出力に失敗しました");
+  }
+}
+
 function parseBirthDate(birthDate) {
   if (typeof birthDate !== "string") return null;
   const match = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -8479,6 +8797,7 @@ function init() {
     refreshCashflowTableOnly();
   });
   cashflowDownloadPdfButton?.addEventListener("click", downloadCashflowPdf);
+  cashflowDownloadJsonButton?.addEventListener("click", downloadAnalysisJson);
   buildPrimaryMainPanels();
   buildInputMainPanels();
   buildIncomeMainPanels();
