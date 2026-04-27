@@ -1864,16 +1864,11 @@ button.plan-card-trigger {
   min-width: 0;
 }
 
-.history-row input,
-.history-row button,
-.plan-withdrawal-settings input,
-.plan-withdrawal-settings button,
-.plan-installment-scenario input,
-.plan-installment-scenario button {
-  width: 100%;
+.history-row > button,
+.plan-installment-scenario-header > .plan-installment-remove-scenario {
+  width: auto;
   max-width: 100%;
   min-width: 0;
-  box-sizing: border-box;
 }
 
 .profile-plan-register-section {
