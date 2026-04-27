@@ -1545,12 +1545,19 @@ button.plan-card-trigger {
 .plan-withdrawal-stack {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .plan-withdrawal-date-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+}
+
+.plan-withdrawal-settings-wrap {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 @media (min-width: 1024px) {
@@ -1654,6 +1661,9 @@ button.plan-card-trigger {
   display: grid;
   gap: 10px;
   background: #f8fbff;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .plan-withdrawal-settings-header {
@@ -1725,6 +1735,9 @@ button.plan-card-trigger {
   border: 1px solid #d9e5f1;
   border-radius: 10px;
   background: #fff;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .plan-withdrawal-block-header {
@@ -1741,6 +1754,7 @@ button.plan-card-trigger {
 .plan-withdrawal-block-fields {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .plan-withdrawal-block-fields[hidden],
@@ -1769,6 +1783,7 @@ button.plan-card-trigger {
 .plan-installment-scenario-list {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .plan-installment-scenario {
@@ -1778,6 +1793,9 @@ button.plan-card-trigger {
   border: 1px solid #d9e5f1;
   border-radius: 10px;
   background: #f9fcff;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .plan-installment-scenario-header {
@@ -1806,6 +1824,9 @@ button.plan-card-trigger {
   padding-top: 10px;
   display: grid;
   gap: 8px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .change-wrap p {
@@ -1832,12 +1853,27 @@ button.plan-card-trigger {
   grid-template-columns: 1fr 1fr auto;
   gap: 8px;
   align-items: end;
+  min-width: 0;
+  width: 100%;
 }
 
 .history-row label {
   font-size: 0.82rem;
   font-weight: 600;
   color: #2a3f57;
+  min-width: 0;
+}
+
+.history-row input,
+.history-row button,
+.plan-withdrawal-settings input,
+.plan-withdrawal-settings button,
+.plan-installment-scenario input,
+.plan-installment-scenario button {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .profile-plan-register-section {

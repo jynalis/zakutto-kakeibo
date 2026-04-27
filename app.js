@@ -7315,49 +7315,51 @@ function createPlanBlock(plan = {}) {
             <div class="plan-withdrawal-date-row">
               <label>引き落とし日<input class="plan-withdrawal-day" type="number" min="1" max="31" step="1" value="${normalizedPlan.withdrawalDay ?? 1}" /></label>
             </div>
-            <section class="plan-withdrawal-settings" aria-label="取崩設定">
-              <div class="plan-withdrawal-settings-header">
-                <h4>取崩設定</h4>
-              </div>
-              <section class="plan-withdrawal-block plan-withdrawal-block-lump">
-                <div class="plan-withdrawal-block-header">
-                  <h5>一括設定</h5>
-                  <div class="plan-segment-control plan-use-setting-control" role="group" aria-label="一括設定の使用">
-                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.useLumpSum ? " is-active" : ""}" data-use-lump-sum="true">使用する</button>
-                    <button type="button" class="plan-segment-button plan-segment-button-sm${!normalizedPlan.useLumpSum ? " is-active" : ""}" data-use-lump-sum="false">使用しない</button>
-                  </div>
-                  <input type="hidden" class="plan-use-lump-sum" value="${normalizedPlan.useLumpSum ? "true" : "false"}" />
+            <div class="plan-withdrawal-settings-wrap">
+              <section class="plan-withdrawal-settings" aria-label="取崩設定">
+                <div class="plan-withdrawal-settings-header">
+                  <h4>取崩設定</h4>
                 </div>
-                <div class="plan-withdrawal-block-fields plan-withdrawal-lump-fields">
-                  <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.lumpSumDate || ""}" /></label>
-                  <div class="plan-sub-segment-wrap">
-                    <p class="plan-sub-segment-label">一括方式</p>
-                    <div class="plan-segment-control plan-lump-sum-mode-control" role="group" aria-label="一括方式">
-                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.lumpSumMode === "amount" ? " is-active" : ""}" data-lump-sum-mode="amount">金額</button>
-                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.lumpSumMode === "rate" ? " is-active" : ""}" data-lump-sum-mode="rate">率</button>
+                <section class="plan-withdrawal-block plan-withdrawal-block-lump">
+                  <div class="plan-withdrawal-block-header">
+                    <h5>一括設定</h5>
+                    <div class="plan-segment-control plan-use-setting-control" role="group" aria-label="一括設定の使用">
+                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.useLumpSum ? " is-active" : ""}" data-use-lump-sum="true">使用する</button>
+                      <button type="button" class="plan-segment-button plan-segment-button-sm${!normalizedPlan.useLumpSum ? " is-active" : ""}" data-use-lump-sum="false">使用しない</button>
                     </div>
+                    <input type="hidden" class="plan-use-lump-sum" value="${normalizedPlan.useLumpSum ? "true" : "false"}" />
                   </div>
-                  <input type="hidden" class="plan-lump-sum-mode" value="${normalizedPlan.lumpSumMode}" />
-                  <label class="plan-lump-sum-amount-wrap">一括解約額(円)<input class="plan-lump-sum-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.lumpSumAmount) ? numberWithComma.format(normalizedPlan.lumpSumAmount) : ""}" /></label>
-                  <label class="plan-lump-sum-rate-wrap">一括解約率(%)<input class="plan-lump-sum-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.lumpSumRate) ? normalizedPlan.lumpSumRate : ""}" /></label>
-                </div>
-              </section>
-              <section class="plan-withdrawal-block plan-withdrawal-block-installment">
-                <div class="plan-withdrawal-block-header">
-                  <h5>分割設定</h5>
-                  <div class="plan-segment-control plan-use-setting-control" role="group" aria-label="分割設定の使用">
-                    <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.useInstallment ? " is-active" : ""}" data-use-installment="true">使用する</button>
-                    <button type="button" class="plan-segment-button plan-segment-button-sm${!normalizedPlan.useInstallment ? " is-active" : ""}" data-use-installment="false">使用しない</button>
+                  <div class="plan-withdrawal-block-fields plan-withdrawal-lump-fields">
+                    <label>一括解約年月<input class="plan-withdraw-month" type="month" value="${normalizedPlan.lumpSumDate || ""}" /></label>
+                    <div class="plan-sub-segment-wrap">
+                      <p class="plan-sub-segment-label">一括方式</p>
+                      <div class="plan-segment-control plan-lump-sum-mode-control" role="group" aria-label="一括方式">
+                        <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.lumpSumMode === "amount" ? " is-active" : ""}" data-lump-sum-mode="amount">金額</button>
+                        <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.lumpSumMode === "rate" ? " is-active" : ""}" data-lump-sum-mode="rate">率</button>
+                      </div>
+                    </div>
+                    <input type="hidden" class="plan-lump-sum-mode" value="${normalizedPlan.lumpSumMode}" />
+                    <label class="plan-lump-sum-amount-wrap">一括解約額(円)<input class="plan-lump-sum-amount js-amount-field" type="text" inputmode="numeric" value="${Number.isFinite(normalizedPlan.lumpSumAmount) ? numberWithComma.format(normalizedPlan.lumpSumAmount) : ""}" /></label>
+                    <label class="plan-lump-sum-rate-wrap">一括解約率(%)<input class="plan-lump-sum-rate" type="number" inputmode="decimal" min="0" step="0.01" value="${Number.isFinite(normalizedPlan.lumpSumRate) ? normalizedPlan.lumpSumRate : ""}" /></label>
                   </div>
-                  <input type="hidden" class="plan-use-installment" value="${normalizedPlan.useInstallment ? "true" : "false"}" />
-                </div>
-                <div class="plan-withdrawal-block-fields plan-withdrawal-installment-fields">
-                  <div class="plan-installment-scenario-list"></div>
-                  <button type="button" class="small plan-installment-add-scenario">シナリオを追加</button>
-                  <p class="plan-installment-rate-note" role="status" aria-live="polite"></p>
-                </div>
+                </section>
+                <section class="plan-withdrawal-block plan-withdrawal-block-installment">
+                  <div class="plan-withdrawal-block-header">
+                    <h5>分割設定</h5>
+                    <div class="plan-segment-control plan-use-setting-control" role="group" aria-label="分割設定の使用">
+                      <button type="button" class="plan-segment-button plan-segment-button-sm${normalizedPlan.useInstallment ? " is-active" : ""}" data-use-installment="true">使用する</button>
+                      <button type="button" class="plan-segment-button plan-segment-button-sm${!normalizedPlan.useInstallment ? " is-active" : ""}" data-use-installment="false">使用しない</button>
+                    </div>
+                    <input type="hidden" class="plan-use-installment" value="${normalizedPlan.useInstallment ? "true" : "false"}" />
+                  </div>
+                  <div class="plan-withdrawal-block-fields plan-withdrawal-installment-fields">
+                    <div class="plan-installment-scenario-list"></div>
+                    <button type="button" class="small plan-installment-add-scenario">シナリオを追加</button>
+                    <p class="plan-installment-rate-note" role="status" aria-live="polite"></p>
+                  </div>
+                </section>
               </section>
-            </section>
+            </div>
             <p class="plan-withdraw-hint">※一括解約年月または分割開始年月が未設定の場合は、積立支出を継続します。</p>
           </div>
         </div>
