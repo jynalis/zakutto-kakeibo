@@ -343,6 +343,11 @@ header p {
 .start-guide-list p {
   color: var(--support-text);
   line-height: 1.5;
+  margin: 0;
+}
+
+.start-guide-list li p + p {
+  margin-top: 8px;
 }
 
 .section-tone-input {
